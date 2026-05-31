@@ -1,0 +1,63 @@
+name: Deploy prove prod
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: prove-prod
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Build and deploy
+    runs-on: self-hosted
+    environment: prove_prod
+
+    env:
+      APP_NAME: prove
+      IMAGE_NAME: prove:${{ github.sha }}
+      CONTAINER_PORT: "3000"
+      HOST_PORT: ${{ vars.PROVE_PORT || '3000' }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_VISION_MODEL: ${{ vars.OPENAI_VISION_MODEL || 'gpt-5.2' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify required secrets
+        run: |
+          test -n "$OPENAI_API_KEY" || {
+            echo "OPENAI_API_KEY is missing in the prove_prod environment."
+            exit 1
+          }
+
+      - name: Build image
+        run: docker build --pull -t "$IMAGE_NAME" .
+
+      - name: Create persistent volume
+        run: docker volume create "${APP_NAME}_data"
+
+      - name: Stop previous container
+        run: |
+          docker rm -f "$APP_NAME" 2>/dev/null || true
+
+      - name: Run container
+        run: |
+          docker run -d \
+            --name "$APP_NAME" \
+            --restart unless-stopped \
+            -p "${HOST_PORT}:${CONTAINER_PORT}" \
+            -e NODE_ENV=production \
+            -e PORT="${CONTAINER_PORT}" \
+            -e SQLITE_DB_PATH=/app/data/prove.sqlite \
+            -e OPENAI_API_KEY="${OPENAI_API_KEY}" \
+            -e OPENAI_VISION_MODEL="${OPENAI_VISION_MODEL}" \
+            -v "${APP_NAME}_data:/app/data" \
+            "$IMAGE_NAME"
+
+      - name: Prune old images
+        run: docker image prune -f

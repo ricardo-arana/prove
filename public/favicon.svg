@@ -1,0 +1,80 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <title>Apple expiry logo</title>
+  <desc>Minimal apple logo with clock hands and transparent background.</desc>
+
+  <!-- Transparent background by default -->
+
+  <!-- Apple outline -->
+  <path
+    d="M256 153
+       C220 122 155 126 122 171
+       C82 226 91 330 131 397
+       C161 448 208 459 246 441
+       C252 438 260 438 266 441
+       C304 459 351 448 381 397
+       C421 330 430 226 390 171
+       C357 126 292 122 256 153Z"
+    stroke="#5F963B"
+    stroke-width="18"
+    stroke-linecap="round"
+    stroke-linejoin="round"/>
+
+  <!-- Bottom apple notch -->
+  <path
+    d="M227 438
+       C239 447 273 447 285 438"
+    stroke="#5F963B"
+    stroke-width="18"
+    stroke-linecap="round"
+    stroke-linejoin="round"/>
+
+  <!-- Stem -->
+  <path
+    d="M256 150
+       C256 124 258 100 274 77"
+    stroke="#063A35"
+    stroke-width="15"
+    stroke-linecap="round"/>
+
+  <!-- Left leaf -->
+  <path
+    d="M258 105
+       C219 104 189 82 176 49
+       C213 48 246 68 258 105Z"
+    stroke="#5F963B"
+    stroke-width="14"
+    stroke-linecap="round"
+    stroke-linejoin="round"/>
+
+  <!-- Right leaf -->
+  <path
+    d="M273 92
+       C302 59 341 48 376 58
+       C353 91 316 108 273 92Z"
+    stroke="#063A35"
+    stroke-width="14"
+    stroke-linecap="round"
+    stroke-linejoin="round"/>
+
+  <!-- Clock center -->
+  <circle cx="252" cy="274" r="8" fill="#063A35"/>
+
+  <!-- Clock hands -->
+  <path
+    d="M252 274
+       L252 211"
+    stroke="#063A35"
+    stroke-width="15"
+    stroke-linecap="round"/>
+
+  <path
+    d="M252 274
+       L321 314"
+    stroke="#063A35"
+    stroke-width="15"
+    stroke-linecap="round"/>
+
+  <!-- Minimal clock markers -->
+  <circle cx="154" cy="288" r="8" fill="#5F963B"/>
+  <circle cx="257" cy="378" r="8" fill="#5F963B"/>
+</svg>
