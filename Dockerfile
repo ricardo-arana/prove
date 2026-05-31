@@ -31,4 +31,6 @@ RUN mkdir -p /app/data
 VOLUME ["/app/data"]
 EXPOSE 3200
 
-CMD ["sh", "-c", "npx vite preview --host 0.0.0.0 --port ${PORT:-3200}"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD node -e "fetch('http://127.0.0.1:' + (process.env.PORT || 3200)).then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+
+CMD ["sh", "-c", "npx vite preview --host 0.0.0.0 --port ${PORT:-3200} --strictPort"]
