@@ -25,6 +25,7 @@ COPY --from=build /app/package.json /app/package-lock.json ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/public ./public
+COPY --from=build /app/server.mjs ./server.mjs
 
 RUN mkdir -p /app/data
 
@@ -33,4 +34,4 @@ EXPOSE 3200
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD node -e "fetch('http://127.0.0.1:' + (process.env.PORT || 3200)).then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 
-CMD ["sh", "-c", "npx vite preview --host 0.0.0.0 --port ${PORT:-3200} --strictPort"]
+CMD ["node", "server.mjs"]
