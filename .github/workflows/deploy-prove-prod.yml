@@ -14,7 +14,7 @@ jobs:
   deploy:
     name: Build and deploy
     runs-on: self-hosted
-    environment: prove_prod
+    environment: prove-prod
 
     env:
       APP_NAME: prove
