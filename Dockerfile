@@ -18,7 +18,7 @@ FROM node:24-bookworm-slim AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV PORT=3200
 ENV SQLITE_DB_PATH=/app/data/prove.sqlite
 
 COPY --from=build /app/package.json /app/package-lock.json ./
@@ -29,6 +29,6 @@ COPY --from=build /app/public ./public
 RUN mkdir -p /app/data
 
 VOLUME ["/app/data"]
-EXPOSE 3000
+EXPOSE 3200
 
-CMD ["sh", "-c", "npx vite preview --host 0.0.0.0 --port ${PORT:-3000}"]
+CMD ["sh", "-c", "npx vite preview --host 0.0.0.0 --port ${PORT:-3200}"]

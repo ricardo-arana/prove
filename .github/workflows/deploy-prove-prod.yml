@@ -14,13 +14,13 @@ jobs:
   deploy:
     name: Build and deploy
     runs-on: self-hosted
-    environment: prove-prod
+    environment: prove_prod
 
     env:
       APP_NAME: prove
       IMAGE_NAME: prove:${{ github.sha }}
-      CONTAINER_PORT: "3000"
-      HOST_PORT: ${{ vars.PROVE_PORT || '3000' }}
+      CONTAINER_PORT: "3200"
+      HOST_PORT: ${{ vars.PROVE_PORT || '3200' }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       OPENAI_VISION_MODEL: ${{ vars.OPENAI_VISION_MODEL || 'gpt-5.2' }}
 
