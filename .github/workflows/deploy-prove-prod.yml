@@ -39,7 +39,8 @@ jobs:
         run: docker build --pull -t "$IMAGE_NAME" .
 
       - name: Create persistent volume
-        run: docker volume create "${APP_NAME}_data"
+        run: |
+          docker volume create "${APP_NAME}_data"
 
       - name: Stop previous container
         run: |

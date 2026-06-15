@@ -13,6 +13,11 @@ export interface ProductPhotoAnalysis {
   notes: string
 }
 
+export interface ProductExpirationSuggestion {
+  expiresAt: string
+  notes: string
+}
+
 const ProductInputSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
@@ -33,8 +38,20 @@ const AnalyzePhotoSchema = z.object({
   fileName: z.string().optional(),
 })
 
+const SuggestExpirationSchema = z.object({
+  name: z.string().min(1),
+  notes: z.string(),
+  quantity: z.string(),
+  area: z.enum(['fridge', 'pantry']),
+})
+
 const ProductPhotoAnalysisSchema = z.object({
   name: z.string(),
+  expiresAt: z.string(),
+  notes: z.string(),
+})
+
+const ProductExpirationSuggestionSchema = z.object({
   expiresAt: z.string(),
   notes: z.string(),
 })
@@ -58,11 +75,116 @@ export const createProduct = createServerFn({ method: 'POST' })
     return insertProduct(data)
   })
 
+export const updateProduct = createServerFn({ method: 'POST' })
+  .inputValidator(ProductInputSchema)
+  .handler(async ({ data }): Promise<ProductRecord | undefined> => {
+    const { updateProduct: updateProductRecord } = await import(
+      '#/lib/products-db.ts'
+    )
+    return updateProductRecord(data)
+  })
+
 export const removeProduct = createServerFn({ method: 'POST' })
   .inputValidator(DeleteProductSchema)
   .handler(async ({ data }) => {
     const { deleteProduct } = await import('#/lib/products-db.ts')
     return deleteProduct(data.id)
+  })
+
+export const suggestProductExpiration = createServerFn({ method: 'POST' })
+  .inputValidator(SuggestExpirationSchema)
+  .handler(async ({ data }): Promise<ProductExpirationSuggestion> => {
+    const apiKey = process.env.OPENAI_API_KEY
+
+    if (!apiKey) {
+      return {
+        expiresAt: '',
+        notes: 'Configura OPENAI_API_KEY para sugerir vencimientos con IA.',
+      }
+    }
+
+    try {
+      const today = new Date().toISOString().slice(0, 10)
+      const response = await fetch('https://api.openai.com/v1/responses', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: process.env.OPENAI_TEXT_MODEL ?? 'gpt-5.2',
+          input: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'input_text',
+                  text: [
+                    'Estima una fecha de vencimiento razonable para un producto de cocina.',
+                    `Fecha actual: ${today}.`,
+                    'Usa el nombre del producto, notas, cantidad y ubicacion.',
+                    'Asume que la fecha debe ser aproximada y futura, salvo que las notas indiquen una fecha concreta.',
+                    'Devuelve una fecha ISO YYYY-MM-DD y una nota breve explicando la estimacion.',
+                    'Si no hay suficiente informacion, devuelve expiresAt como cadena vacia.',
+                    `Producto: ${data.name}`,
+                    `Notas: ${data.notes || 'Sin notas'}`,
+                    `Cantidad: ${data.quantity || 'No especificada'}`,
+                    `Ubicacion: ${
+                      data.area === 'fridge' ? 'Refrigeradora' : 'Despensa'
+                    }`,
+                  ].join('\n'),
+                },
+              ],
+            },
+          ],
+          text: {
+            format: {
+              type: 'json_schema',
+              name: 'product_expiration_suggestion',
+              strict: true,
+              schema: {
+                type: 'object',
+                additionalProperties: false,
+                properties: {
+                  expiresAt: {
+                    type: 'string',
+                    description: 'Fecha ISO YYYY-MM-DD o cadena vacia.',
+                  },
+                  notes: {
+                    type: 'string',
+                    description: 'Explicacion breve de la estimacion.',
+                  },
+                },
+                required: ['expiresAt', 'notes'],
+              },
+            },
+          },
+        }),
+      })
+
+      if (!response.ok) {
+        return {
+          expiresAt: '',
+          notes: `OpenAI respondio ${response.status}; completa la fecha manualmente.`,
+        }
+      }
+
+      const payload = (await response.json()) as OpenAIResponsesPayload
+      const outputText = extractResponseText(payload)
+      const parsed = ProductExpirationSuggestionSchema.parse(
+        JSON.parse(outputText || '{}'),
+      )
+
+      return {
+        expiresAt: parsed.expiresAt,
+        notes: parsed.notes || 'Fecha sugerida por IA.',
+      }
+    } catch {
+      return {
+        expiresAt: '',
+        notes: 'No se pudo sugerir la fecha con IA. Completa la fecha manualmente.',
+      }
+    }
   })
 
 export const analyzeProductPhoto = createServerFn({ method: 'POST' })

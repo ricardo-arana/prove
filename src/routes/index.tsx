@@ -6,7 +6,10 @@ import {
   ChefHat,
   Clock3,
   ImageUp,
+  Info,
+  MoreVertical,
   PackagePlus,
+  Pencil,
   Refrigerator,
   Search,
   Sparkles,
@@ -34,6 +37,8 @@ import {
   createProduct,
   getProducts,
   removeProduct,
+  suggestProductExpiration,
+  updateProduct,
 } from '#/lib/products-server.ts'
 import { cn } from '#/lib/utils.ts'
 
@@ -59,17 +64,36 @@ const emptyForm: ProductFormState = {
   notes: '',
 }
 
+const PRODUCT_SUMMARY_LIMITS = {
+  name: 56,
+  quantity: 48,
+  notes: 96,
+} as const
+
+function truncateText(value: string, maxLength: number) {
+  if (value.length <= maxLength) return value
+
+  return `${value.slice(0, maxLength - 3).trimEnd()}...`
+}
+
 function Home() {
   const getProductsFn = useServerFn(getProducts)
   const createProductFn = useServerFn(createProduct)
+  const updateProductFn = useServerFn(updateProduct)
   const removeProductFn = useServerFn(removeProduct)
+  const suggestProductExpirationFn = useServerFn(suggestProductExpiration)
   const analyzeProductPhotoFn = useServerFn(analyzeProductPhoto)
   const [products, setProducts] = React.useState<Product[]>([])
   const [form, setForm] = React.useState<ProductFormState>(emptyForm)
+  const [editingProduct, setEditingProduct] = React.useState<Product | null>(
+    null,
+  )
   const [query, setQuery] = React.useState('')
   const [activeArea, setActiveArea] = React.useState<'all' | StorageArea>('all')
   const [loadingProducts, setLoadingProducts] = React.useState(true)
   const [savingProduct, setSavingProduct] = React.useState(false)
+  const [suggestingExpiration, setSuggestingExpiration] = React.useState(false)
+  const [expirationSuggestion, setExpirationSuggestion] = React.useState('')
   const [saveError, setSaveError] = React.useState('')
   const [productModalOpen, setProductModalOpen] = React.useState(false)
   const [cameraModalOpen, setCameraModalOpen] = React.useState(false)
@@ -138,37 +162,80 @@ function Home() {
     setForm((current) => ({ ...current, [key]: value }))
   }
 
-  async function addProduct(source: Product['source'] = 'manual') {
+  function openProductForm() {
+    setEditingProduct(null)
+    setForm(emptyForm)
+    setScanPreview('')
+    setAiStatus('idle')
+    setExpirationSuggestion('')
+    setSaveError('')
+    setProductModalOpen(true)
+  }
+
+  function editProduct(product: Product) {
+    setEditingProduct(product)
+    setForm({
+      name: product.name,
+      area: product.area,
+      expiresAt: product.expiresAt,
+      quantity: product.quantity,
+      notes: product.notes,
+    })
+    setScanPreview(product.imageUrl ?? '')
+    setAiStatus(product.source === 'ai' ? 'ready' : 'idle')
+    setExpirationSuggestion('')
+    setSaveError('')
+    setProductModalOpen(true)
+  }
+
+  function closeProductForm() {
+    setProductModalOpen(false)
+    setEditingProduct(null)
+    setForm(emptyForm)
+    setScanPreview('')
+    setAiStatus('idle')
+    setExpirationSuggestion('')
+    setSaveError('')
+  }
+
+  async function saveProduct(source: Product['source'] = 'manual') {
     if (!form.name.trim() || !form.expiresAt || savingProduct) return
 
     setSaveError('')
     setSavingProduct(true)
 
     const product = {
-      id: crypto.randomUUID(),
+      id: editingProduct?.id ?? crypto.randomUUID(),
       name: form.name.trim(),
       area: form.area,
       expiresAt: form.expiresAt,
       quantity: form.quantity.trim() || '1 unidad',
       notes: form.notes.trim(),
-      source,
-      imageUrl: scanPreview || undefined,
+      source: editingProduct?.source ?? source,
+      imageUrl: scanPreview || editingProduct?.imageUrl || undefined,
     }
 
     try {
-      const savedProduct = await createProductFn({ data: product })
+      const savedProduct = editingProduct
+        ? await updateProductFn({ data: product })
+        : await createProductFn({ data: product })
       if (savedProduct) {
-        setProducts((current) => [savedProduct, ...current])
+        setProducts((current) =>
+          editingProduct
+            ? current.map((item) =>
+                item.id === savedProduct.id ? savedProduct : item,
+              )
+            : [savedProduct, ...current],
+        )
       }
-      setForm(emptyForm)
-      setScanPreview('')
-      setAiStatus('idle')
-      setProductModalOpen(false)
+      closeProductForm()
     } catch (error) {
       setSaveError(
         error instanceof Error
           ? error.message
-          : 'No se pudo guardar el producto.',
+          : editingProduct
+            ? 'No se pudo actualizar el producto.'
+            : 'No se pudo guardar el producto.',
       )
     } finally {
       setSavingProduct(false)
@@ -183,6 +250,42 @@ function Home() {
       await removeProductFn({ data: { id } })
     } catch {
       setProducts(previousProducts)
+    }
+  }
+
+  async function suggestExpirationDate() {
+    const name = form.name.trim()
+    if (!name || suggestingExpiration) return
+
+    setSuggestingExpiration(true)
+    setExpirationSuggestion('Consultando IA...')
+
+    try {
+      const suggestion = await suggestProductExpirationFn({
+        data: {
+          name,
+          notes: form.notes.trim(),
+          quantity: form.quantity.trim(),
+          area: form.area,
+        },
+      })
+
+      if (suggestion.expiresAt) {
+        updateForm('expiresAt', suggestion.expiresAt)
+      }
+
+      setExpirationSuggestion(
+        suggestion.notes ||
+          (suggestion.expiresAt
+            ? 'Fecha sugerida por IA.'
+            : 'No se pudo sugerir una fecha.'),
+      )
+    } catch {
+      setExpirationSuggestion(
+        'No se pudo sugerir la fecha con IA. Completa la fecha manualmente.',
+      )
+    } finally {
+      setSuggestingExpiration(false)
     }
   }
 
@@ -306,7 +409,7 @@ function Home() {
           <ActionCard
             icon={<PackagePlus className="size-5" />}
             title="Agregar producto"
-            onClick={() => setProductModalOpen(true)}
+            onClick={openProductForm}
           />
           <ActionCard
             icon={<Camera className="size-5" />}
@@ -367,6 +470,7 @@ function Home() {
                 <ProductRow
                   key={product.id}
                   product={product}
+                  onEdit={() => editProduct(product)}
                   onRemove={() => removeProductById(product.id)}
                 />
               ))
@@ -388,9 +492,9 @@ function Home() {
       </section>
 
       <Modal
-        title="Agregar producto"
+        title={editingProduct ? 'Editar producto' : 'Agregar producto'}
         open={productModalOpen}
-        onClose={() => setProductModalOpen(false)}
+        onClose={closeProductForm}
       >
         <div className="grid gap-4">
           <Field label="Producto" htmlFor="name">
@@ -431,12 +535,35 @@ function Home() {
           </div>
 
           <Field label="Vencimiento" htmlFor="expiresAt">
-            <Input
-              id="expiresAt"
-              type="date"
-              value={form.expiresAt}
-              onChange={(event) => updateForm('expiresAt', event.target.value)}
-            />
+            <div className="flex gap-2">
+              <Input
+                id="expiresAt"
+                type="date"
+                value={form.expiresAt}
+                onChange={(event) => updateForm('expiresAt', event.target.value)}
+              />
+              <Button
+                aria-label="Sugerir vencimiento con IA"
+                title="Sugerir vencimiento con IA"
+                type="button"
+                variant="outline"
+                size="icon"
+                disabled={!form.name.trim() || suggestingExpiration}
+                onClick={suggestExpirationDate}
+              >
+                <Sparkles
+                  className={cn(
+                    'size-4',
+                    suggestingExpiration && 'animate-pulse',
+                  )}
+                />
+              </Button>
+            </div>
+            {expirationSuggestion ? (
+              <p className="text-xs text-muted-foreground">
+                {expirationSuggestion}
+              </p>
+            ) : null}
           </Field>
 
           <Field label="Notas" htmlFor="notes">
@@ -451,10 +578,14 @@ function Home() {
           <Button
             className="w-full"
             disabled={!form.name.trim() || !form.expiresAt || savingProduct}
-            onClick={() => addProduct(aiStatus === 'ready' ? 'ai' : 'manual')}
+            onClick={() => saveProduct(aiStatus === 'ready' ? 'ai' : 'manual')}
           >
             <Check className="size-4" />
-            {savingProduct ? 'Guardando...' : 'Guardar producto'}
+            {savingProduct
+              ? 'Guardando...'
+              : editingProduct
+                ? 'Guardar cambios'
+                : 'Guardar producto'}
           </Button>
 
           {saveError ? (
@@ -544,7 +675,7 @@ function Panel({
   return (
     <div
       className={cn(
-        'rounded-lg border border-border bg-card p-5 text-card-foreground shadow-sm',
+        'min-w-0 rounded-lg border border-border bg-card p-5 text-card-foreground shadow-sm',
         className,
       )}
     >
@@ -684,66 +815,202 @@ function FilterButton({
 
 function ProductRow({
   product,
+  onEdit,
   onRemove,
 }: {
   product: Product
+  onEdit: () => void
   onRemove: () => void
 }) {
+  const [detailsOpen, setDetailsOpen] = React.useState(false)
   const freshness = getFreshness(product.expiresAt)
   const Icon = product.area === 'fridge' ? Refrigerator : Warehouse
+  const displayName = truncateText(product.name, PRODUCT_SUMMARY_LIMITS.name)
+  const displayQuantity = truncateText(
+    product.quantity,
+    PRODUCT_SUMMARY_LIMITS.quantity,
+  )
+  const displayNotes = truncateText(product.notes, PRODUCT_SUMMARY_LIMITS.notes)
 
   return (
-    <Panel className="p-4">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 gap-3">
-          <div className="flex size-11 shrink-0 items-center justify-center rounded-md bg-accent text-accent-foreground">
-            <Icon className="size-5" />
-          </div>
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="truncate text-base font-semibold">
-                {product.name}
-              </h3>
-              {product.source === 'ai' ? (
-                <span className="inline-flex items-center gap-1 rounded-md bg-primary/15 px-2 py-1 text-xs font-medium text-foreground">
-                  <Sparkles className="size-3" />
-                  IA
-                </span>
+    <>
+      <Panel className="p-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex w-full min-w-0 gap-3">
+            <div className="flex size-11 shrink-0 items-center justify-center rounded-md bg-accent text-accent-foreground">
+              <Icon className="size-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <h3 className="min-w-0 max-w-full truncate text-base font-semibold">
+                  {displayName}
+                </h3>
+                {product.source === 'ai' ? (
+                  <span className="inline-flex items-center gap-1 rounded-md bg-primary/15 px-2 py-1 text-xs font-medium text-foreground">
+                    <Sparkles className="size-3" />
+                    IA
+                  </span>
+                ) : null}
+              </div>
+              <p className="mt-1 text-sm text-muted-foreground [overflow-wrap:anywhere]">
+                {displayQuantity} ·{' '}
+                {product.area === 'fridge' ? 'Refrigeradora' : 'Despensa'}
+              </p>
+              {product.notes ? (
+                <p className="mt-1 text-sm text-muted-foreground [overflow-wrap:anywhere]">
+                  {displayNotes}
+                </p>
               ) : null}
             </div>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {product.quantity} ·{' '}
-              {product.area === 'fridge' ? 'Refrigeradora' : 'Despensa'}
+          </div>
+
+          <div className="flex items-center justify-between gap-2 sm:justify-end">
+            <div
+              className={cn(
+                'inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium',
+                freshness.className,
+              )}
+            >
+              {freshness.icon}
+              <span>{freshness.label}</span>
+            </div>
+            <ProductActionsMenu
+              productName={product.name}
+              onDetails={() => setDetailsOpen(true)}
+              onEdit={onEdit}
+              onRemove={onRemove}
+            />
+          </div>
+        </div>
+      </Panel>
+
+      <Modal
+        title="Detalle del producto"
+        open={detailsOpen}
+        onClose={() => setDetailsOpen(false)}
+      >
+        <div className="grid gap-4 text-sm">
+          <div>
+            <div className="mb-1 font-medium text-muted-foreground">
+              Producto
+            </div>
+            <p className="font-semibold [overflow-wrap:anywhere]">
+              {product.name}
             </p>
-            {product.notes ? (
-              <p className="mt-1 text-sm text-muted-foreground">
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="mb-1 font-medium text-muted-foreground">
+                Ubicacion
+              </div>
+              <p>
+                {product.area === 'fridge' ? 'Refrigeradora' : 'Despensa'}
+              </p>
+            </div>
+            <div>
+              <div className="mb-1 font-medium text-muted-foreground">
+                Vencimiento
+              </div>
+              <p>{formatDate(product.expiresAt)}</p>
+            </div>
+          </div>
+          <div>
+            <div className="mb-1 font-medium text-muted-foreground">
+              Cantidad
+            </div>
+            <p className="[overflow-wrap:anywhere]">{product.quantity}</p>
+          </div>
+          {product.notes ? (
+            <div>
+              <div className="mb-1 font-medium text-muted-foreground">
+                Notas
+              </div>
+              <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">
                 {product.notes}
               </p>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
         </div>
+      </Modal>
+    </>
+  )
+}
 
-        <div className="flex items-center justify-between gap-3 sm:justify-end">
-          <div
-            className={cn(
-              'inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium',
-              freshness.className,
-            )}
-          >
-            {freshness.icon}
-            <span>{freshness.label}</span>
-          </div>
-          <Button
-            aria-label={`Eliminar ${product.name}`}
-            variant="ghost"
-            size="icon"
-            onClick={onRemove}
-          >
+function ProductActionsMenu({
+  productName,
+  onDetails,
+  onEdit,
+  onRemove,
+}: {
+  productName: string
+  onDetails: () => void
+  onEdit: () => void
+  onRemove: () => void
+}) {
+  const [open, setOpen] = React.useState(false)
+
+  function runAction(action: () => void) {
+    setOpen(false)
+    action()
+  }
+
+  return (
+    <div className="relative shrink-0">
+      <Button
+        aria-expanded={open}
+        aria-haspopup="menu"
+        aria-label={`Opciones de ${productName}`}
+        variant="ghost"
+        size="icon"
+        onClick={() => setOpen((current) => !current)}
+      >
+        <MoreVertical className="size-4" />
+      </Button>
+
+      {open ? (
+        <div
+          className="absolute right-0 top-10 z-20 grid min-w-40 overflow-hidden rounded-md border border-border bg-popover py-1 text-popover-foreground shadow-lg"
+          role="menu"
+        >
+          <MenuAction onClick={() => runAction(onDetails)}>
+            <Info className="size-4" />
+            Detalle
+          </MenuAction>
+          <MenuAction onClick={() => runAction(onEdit)}>
+            <Pencil className="size-4" />
+            Editar
+          </MenuAction>
+          <MenuAction destructive onClick={() => runAction(onRemove)}>
             <Trash2 className="size-4" />
-          </Button>
+            Eliminar
+          </MenuAction>
         </div>
-      </div>
-    </Panel>
+      ) : null}
+    </div>
+  )
+}
+
+function MenuAction({
+  children,
+  destructive = false,
+  onClick,
+}: {
+  children: React.ReactNode
+  destructive?: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      className={cn(
+        'flex h-9 items-center gap-2 px-3 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground',
+        destructive && 'text-destructive hover:text-destructive',
+      )}
+      onClick={onClick}
+      role="menuitem"
+      type="button"
+    >
+      {children}
+    </button>
   )
 }
 
@@ -834,6 +1101,14 @@ function addDays(date: Date, days: number) {
 function parseLocalDate(value: string) {
   const [year, month, day] = value.split('-').map(Number)
   return new Date(year, month - 1, day)
+}
+
+function formatDate(value: string) {
+  return parseLocalDate(value).toLocaleDateString('es-PE', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
 }
 
 function differenceInDays(a: Date, b: Date) {

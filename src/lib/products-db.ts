@@ -106,6 +106,38 @@ export function insertProduct(product: NewProductRecord) {
   return findProduct(product.id)
 }
 
+export function updateProduct(product: NewProductRecord) {
+  runWithWritableDb(() => {
+    getDb()
+      .prepare(
+        `
+          UPDATE products
+          SET
+            name = ?,
+            area = ?,
+            expires_at = ?,
+            quantity = ?,
+            notes = ?,
+            source = ?,
+            image_url = ?
+          WHERE id = ?
+        `,
+      )
+      .run(
+        product.name,
+        product.area,
+        product.expiresAt,
+        product.quantity,
+        product.notes,
+        product.source,
+        product.imageUrl ?? null,
+        product.id,
+      )
+  })
+
+  return findProduct(product.id)
+}
+
 export function deleteProduct(id: string) {
   runWithWritableDb(() => {
     getDb().prepare('DELETE FROM products WHERE id = ?').run(id)
