@@ -98,6 +98,7 @@ function Home() {
   const [productModalOpen, setProductModalOpen] = React.useState(false)
   const [cameraModalOpen, setCameraModalOpen] = React.useState(false)
   const [cameraOpen, setCameraOpen] = React.useState(false)
+  const [cameraReady, setCameraReady] = React.useState(false)
   const [cameraError, setCameraError] = React.useState('')
   const [scanPreview, setScanPreview] = React.useState('')
   const [aiStatus, setAiStatus] = React.useState<
@@ -125,6 +126,12 @@ function Home() {
   React.useEffect(() => {
     return () => stopCamera()
   }, [])
+
+  React.useEffect(() => {
+    if (cameraOpen) {
+      void attachCameraStream()
+    }
+  }, [cameraOpen])
 
   const stats = React.useMemo(() => {
     const today = startOfToday()
@@ -291,6 +298,7 @@ function Home() {
 
   async function openCamera() {
     setCameraError('')
+    setCameraReady(false)
 
     if (
       !('mediaDevices' in navigator) ||
@@ -302,25 +310,44 @@ function Home() {
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
         video: { facingMode: { ideal: 'environment' } },
       })
 
       streamRef.current = stream
       setCameraOpen(true)
-
-      window.setTimeout(() => {
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream
-        }
-      })
     } catch {
       setCameraError('No pude abrir la camara. Puedes subir una foto.')
+    }
+  }
+
+  async function attachCameraStream() {
+    const video = videoRef.current
+    const stream = streamRef.current
+    if (!video || !stream) return
+
+    try {
+      video.muted = true
+      video.playsInline = true
+      video.setAttribute('playsinline', 'true')
+      video.srcObject = stream
+      await video.play()
+      setCameraReady(video.videoWidth > 0)
+    } catch {
+      setCameraReady(false)
+      setCameraError(
+        'La camara se abrio, pero el video no pudo iniciar. Toca Camara otra vez o usa Subir.',
+      )
     }
   }
 
   function stopCamera() {
     streamRef.current?.getTracks().forEach((track) => track.stop())
     streamRef.current = null
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
+    }
+    setCameraReady(false)
   }
 
   function closeCamera() {
@@ -330,7 +357,10 @@ function Home() {
 
   async function capturePhoto() {
     const video = videoRef.current
-    if (!video || !video.videoWidth) return
+    if (!video || !video.videoWidth || !video.videoHeight) {
+      setCameraError('La camara aun no esta lista para capturar.')
+      return
+    }
 
     const canvas = document.createElement('canvas')
     canvas.width = video.videoWidth
@@ -623,11 +653,19 @@ function Home() {
                 playsInline
                 muted
                 className="h-56 w-full rounded-md border border-border bg-black object-cover"
+                onLoadedMetadata={() => {
+                  const video = videoRef.current
+                  setCameraReady(Boolean(video?.videoWidth && video.videoHeight))
+                  void video?.play().catch(() => {
+                    setCameraReady(false)
+                  })
+                }}
+                onCanPlay={() => setCameraReady(true)}
               />
               <div className="grid grid-cols-2 gap-2">
-                <Button onClick={capturePhoto}>
+                <Button disabled={!cameraReady} onClick={capturePhoto}>
                   <Camera className="size-4" />
-                  Capturar
+                  {cameraReady ? 'Capturar' : 'Preparando...'}
                 </Button>
                 <Button variant="outline" onClick={closeCamera}>
                   Cancelar
