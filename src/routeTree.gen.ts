@@ -10,33 +10,53 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiProductsIndexRouteImport } from './routes/api/products/index'
+import { Route as ApiProductsExpiringRouteImport } from './routes/api/products/expiring'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiProductsIndexRoute = ApiProductsIndexRouteImport.update({
+  id: '/api/products/',
+  path: '/api/products/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiProductsExpiringRoute = ApiProductsExpiringRouteImport.update({
+  id: '/api/products/expiring',
+  path: '/api/products/expiring',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/api/products/expiring': typeof ApiProductsExpiringRoute
+  '/api/products/': typeof ApiProductsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/api/products/expiring': typeof ApiProductsExpiringRoute
+  '/api/products': typeof ApiProductsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/api/products/expiring': typeof ApiProductsExpiringRoute
+  '/api/products/': typeof ApiProductsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/api/products/expiring' | '/api/products/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/api/products/expiring' | '/api/products'
+  id: '__root__' | '/' | '/api/products/expiring' | '/api/products/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ApiProductsExpiringRoute: typeof ApiProductsExpiringRoute
+  ApiProductsIndexRoute: typeof ApiProductsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +68,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/products/': {
+      id: '/api/products/'
+      path: '/api/products'
+      fullPath: '/api/products/'
+      preLoaderRoute: typeof ApiProductsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/products/expiring': {
+      id: '/api/products/expiring'
+      path: '/api/products/expiring'
+      fullPath: '/api/products/expiring'
+      preLoaderRoute: typeof ApiProductsExpiringRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ApiProductsExpiringRoute: ApiProductsExpiringRoute,
+  ApiProductsIndexRoute: ApiProductsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

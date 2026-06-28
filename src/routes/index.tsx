@@ -40,6 +40,7 @@ import {
   suggestProductExpiration,
   updateProduct,
 } from '#/lib/products-server.ts'
+import { formatRemaining } from '#/lib/format-remaining.ts'
 import { cn } from '#/lib/utils.ts'
 
 import type { ProductRecord, StorageArea } from '#/lib/products-server.ts'
@@ -1119,7 +1120,7 @@ function getFreshness(expiresAt: string) {
   }
 
   return {
-    label: `Vence en ${days} d`,
+    label: `Vence en ${formatRemaining(days)}`,
     className: 'border-border bg-background text-muted-foreground',
     icon: <Clock3 className="size-4" />,
   }

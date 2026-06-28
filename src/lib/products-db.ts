@@ -73,6 +73,33 @@ export function listProducts() {
     .all() as unknown as ProductRecord[]
 }
 
+export function listProductsExpiringInRange(
+  start: string, // YYYY-MM-DD
+  end: string, // YYYY-MM-DD
+  today: string, // YYYY-MM-DD
+) {
+  return getDb()
+    .prepare(
+      `
+        SELECT
+          id,
+          name,
+          area,
+          expires_at AS expiresAt,
+          quantity,
+          notes,
+          source,
+          image_url AS imageUrl,
+          created_at AS createdAt
+        FROM products
+        WHERE expires_at < ?              -- ya vencidos hasta hoy
+           OR expires_at BETWEEN ? AND ?  -- por vencer dentro del rango
+        ORDER BY expires_at ASC, created_at DESC
+      `,
+    )
+    .all(today, start, end) as unknown as ProductRecord[]
+}
+
 export function insertProduct(product: NewProductRecord) {
   runWithWritableDb(() => {
     getDb()
