@@ -10,12 +10,24 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ProductsIndexRouteImport } from './routes/products/index'
+import { Route as ProductsProductIdRouteImport } from './routes/products/$productId'
 import { Route as ApiProductsIndexRouteImport } from './routes/api/products/index'
 import { Route as ApiProductsExpiringRouteImport } from './routes/api/products/expiring'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProductsIndexRoute = ProductsIndexRouteImport.update({
+  id: '/products/',
+  path: '/products/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProductsProductIdRoute = ProductsProductIdRouteImport.update({
+  id: '/products/$productId',
+  path: '/products/$productId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiProductsIndexRoute = ApiProductsIndexRouteImport.update({
@@ -31,30 +43,54 @@ const ApiProductsExpiringRoute = ApiProductsExpiringRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/products/$productId': typeof ProductsProductIdRoute
+  '/products/': typeof ProductsIndexRoute
   '/api/products/expiring': typeof ApiProductsExpiringRoute
   '/api/products/': typeof ApiProductsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/products/$productId': typeof ProductsProductIdRoute
+  '/products': typeof ProductsIndexRoute
   '/api/products/expiring': typeof ApiProductsExpiringRoute
   '/api/products': typeof ApiProductsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/products/$productId': typeof ProductsProductIdRoute
+  '/products/': typeof ProductsIndexRoute
   '/api/products/expiring': typeof ApiProductsExpiringRoute
   '/api/products/': typeof ApiProductsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/products/expiring' | '/api/products/'
+  fullPaths:
+    | '/'
+    | '/products/$productId'
+    | '/products/'
+    | '/api/products/expiring'
+    | '/api/products/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/products/expiring' | '/api/products'
-  id: '__root__' | '/' | '/api/products/expiring' | '/api/products/'
+  to:
+    | '/'
+    | '/products/$productId'
+    | '/products'
+    | '/api/products/expiring'
+    | '/api/products'
+  id:
+    | '__root__'
+    | '/'
+    | '/products/$productId'
+    | '/products/'
+    | '/api/products/expiring'
+    | '/api/products/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ProductsProductIdRoute: typeof ProductsProductIdRoute
+  ProductsIndexRoute: typeof ProductsIndexRoute
   ApiProductsExpiringRoute: typeof ApiProductsExpiringRoute
   ApiProductsIndexRoute: typeof ApiProductsIndexRoute
 }
@@ -66,6 +102,20 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/products/': {
+      id: '/products/'
+      path: '/products'
+      fullPath: '/products/'
+      preLoaderRoute: typeof ProductsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/products/$productId': {
+      id: '/products/$productId'
+      path: '/products/$productId'
+      fullPath: '/products/$productId'
+      preLoaderRoute: typeof ProductsProductIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/products/': {
@@ -87,6 +137,8 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ProductsProductIdRoute: ProductsProductIdRoute,
+  ProductsIndexRoute: ProductsIndexRoute,
   ApiProductsExpiringRoute: ApiProductsExpiringRoute,
   ApiProductsIndexRoute: ApiProductsIndexRoute,
 }

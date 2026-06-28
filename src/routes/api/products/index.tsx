@@ -11,6 +11,7 @@ const BodySchema = z.object({
   notes: z.string().default(''),
   source: z.enum(['manual', 'ai']).default('manual'),
   imageUrl: z.string().optional(),
+  price: z.coerce.number().positive().optional(), // soles, opcional
 })
 
 export const Route = createFileRoute('/api/products/')({
@@ -32,14 +33,21 @@ export const Route = createFileRoute('/api/products/')({
           )
         }
 
-        const { insertProduct } = await import('#/lib/products-db.ts')
-        const created = insertProduct({ id: randomUUID(), ...parsed.data })
+        const { price, ...data } = parsed.data
+        const { insertProduct, addPriceEntry } = await import(
+          '#/lib/products-db.ts'
+        )
+        const created = insertProduct({ id: randomUUID(), ...data })
         if (!created) {
           return json({ error: 'No se pudo crear el producto.' }, { status: 500 })
         }
 
+        if (price !== undefined) {
+          addPriceEntry(data.name, price, new Date().toISOString().slice(0, 10))
+        }
+
         const { imageUrl: _imageUrl, ...product } = created
-        return json({ product }, { status: 201 })
+        return json({ product, price: price ?? null }, { status: 201 })
       },
     },
   },

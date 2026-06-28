@@ -13,12 +13,13 @@ import {
   Refrigerator,
   Search,
   Sparkles,
+  Trash,
   Trash2,
   Upload,
   Warehouse,
   X,
 } from 'lucide-react'
-import { createFileRoute } from '@tanstack/react-router'
+import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 
 import { Button } from '#/components/ui/button.tsx'
@@ -35,6 +36,8 @@ import { Textarea } from '#/components/ui/textarea.tsx'
 import {
   analyzeProductPhoto,
   createProduct,
+  discardProduct,
+  getProductNames,
   getProducts,
   removeProduct,
   suggestProductExpiration,
@@ -55,6 +58,7 @@ interface ProductFormState {
   expiresAt: string
   quantity: string
   notes: string
+  price: string
 }
 
 const emptyForm: ProductFormState = {
@@ -63,6 +67,7 @@ const emptyForm: ProductFormState = {
   expiresAt: '',
   quantity: '1 unidad',
   notes: '',
+  price: '',
 }
 
 const PRODUCT_SUMMARY_LIMITS = {
@@ -78,13 +83,17 @@ function truncateText(value: string, maxLength: number) {
 }
 
 function Home() {
+  const navigate = useNavigate()
   const getProductsFn = useServerFn(getProducts)
   const createProductFn = useServerFn(createProduct)
   const updateProductFn = useServerFn(updateProduct)
   const removeProductFn = useServerFn(removeProduct)
+  const discardProductFn = useServerFn(discardProduct)
+  const getProductNamesFn = useServerFn(getProductNames)
   const suggestProductExpirationFn = useServerFn(suggestProductExpiration)
   const analyzeProductPhotoFn = useServerFn(analyzeProductPhoto)
   const [products, setProducts] = React.useState<Product[]>([])
+  const [productNames, setProductNames] = React.useState<string[]>([])
   const [form, setForm] = React.useState<ProductFormState>(emptyForm)
   const [editingProduct, setEditingProduct] = React.useState<Product | null>(
     null,
@@ -123,6 +132,16 @@ function Home() {
       active = false
     }
   }, [getProductsFn])
+
+  React.useEffect(() => {
+    let active = true
+    getProductNamesFn().then((names) => {
+      if (active) setProductNames(names)
+    })
+    return () => {
+      active = false
+    }
+  }, [getProductNamesFn])
 
   React.useEffect(() => {
     return () => stopCamera()
@@ -188,6 +207,7 @@ function Home() {
       expiresAt: product.expiresAt,
       quantity: product.quantity,
       notes: product.notes,
+      price: '',
     })
     setScanPreview(product.imageUrl ?? '')
     setAiStatus(product.source === 'ai' ? 'ready' : 'idle')
@@ -221,6 +241,7 @@ function Home() {
       notes: form.notes.trim(),
       source: editingProduct?.source ?? source,
       imageUrl: scanPreview || editingProduct?.imageUrl || undefined,
+      price: form.price.trim() || undefined,
     }
 
     try {
@@ -236,6 +257,11 @@ function Home() {
             : [savedProduct, ...current],
         )
       }
+      setProductNames((current) =>
+        current.some((n) => n.toLowerCase() === product.name.toLowerCase())
+          ? current
+          : [...current, product.name].sort((a, b) => a.localeCompare(b)),
+      )
       closeProductForm()
     } catch (error) {
       setSaveError(
@@ -256,6 +282,17 @@ function Home() {
 
     try {
       await removeProductFn({ data: { id } })
+    } catch {
+      setProducts(previousProducts)
+    }
+  }
+
+  async function discardProductById(id: string) {
+    const previousProducts = products
+    setProducts((current) => current.filter((product) => product.id !== id))
+
+    try {
+      await discardProductFn({ data: { id } })
     } catch {
       setProducts(previousProducts)
     }
@@ -485,6 +522,15 @@ function Home() {
             </div>
           </Panel>
 
+          <div className="flex justify-end">
+            <Link
+              to="/products"
+              className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+            >
+              Ver todos los productos
+            </Link>
+          </div>
+
           <div className="grid gap-3">
             {loadingProducts ? (
               <Panel className="flex min-h-56 items-center justify-center text-center">
@@ -501,7 +547,14 @@ function Home() {
                 <ProductRow
                   key={product.id}
                   product={product}
+                  onDetails={() =>
+                    navigate({
+                      to: '/products/$productId',
+                      params: { productId: product.id },
+                    })
+                  }
                   onEdit={() => editProduct(product)}
+                  onDiscard={() => discardProductById(product.id)}
                   onRemove={() => removeProductById(product.id)}
                 />
               ))
@@ -531,10 +584,16 @@ function Home() {
           <Field label="Producto" htmlFor="name">
             <Input
               id="name"
+              list="product-names"
               value={form.name}
               onChange={(event) => updateForm('name', event.target.value)}
               placeholder="Leche, atun, verduras..."
             />
+            <datalist id="product-names">
+              {productNames.map((name) => (
+                <option key={name} value={name} />
+              ))}
+            </datalist>
           </Field>
 
           <div className="grid grid-cols-2 gap-3">
@@ -564,6 +623,25 @@ function Home() {
               />
             </Field>
           </div>
+
+          <Field label="Precio de compra (opcional)" htmlFor="price">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">S/</span>
+              <Input
+                id="price"
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.01"
+                value={form.price}
+                onChange={(event) => updateForm('price', event.target.value)}
+                placeholder="0.00"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Se guarda en el historial de precios del producto.
+            </p>
+          </Field>
 
           <Field label="Vencimiento" htmlFor="expiresAt">
             <div className="flex gap-2">
@@ -854,14 +932,17 @@ function FilterButton({
 
 function ProductRow({
   product,
+  onDetails,
   onEdit,
+  onDiscard,
   onRemove,
 }: {
   product: Product
+  onDetails: () => void
   onEdit: () => void
+  onDiscard: () => void
   onRemove: () => void
 }) {
-  const [detailsOpen, setDetailsOpen] = React.useState(false)
   const freshness = getFreshness(product.expiresAt)
   const Icon = product.area === 'fridge' ? Refrigerator : Warehouse
   const displayName = truncateText(product.name, PRODUCT_SUMMARY_LIMITS.name)
@@ -872,9 +953,8 @@ function ProductRow({
   const displayNotes = truncateText(product.notes, PRODUCT_SUMMARY_LIMITS.notes)
 
   return (
-    <>
-      <Panel className="p-4">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <Panel className="p-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex w-full min-w-0 gap-3">
             <div className="flex size-11 shrink-0 items-center justify-center rounded-md bg-accent text-accent-foreground">
               <Icon className="size-5" />
@@ -915,63 +995,14 @@ function ProductRow({
             </div>
             <ProductActionsMenu
               productName={product.name}
-              onDetails={() => setDetailsOpen(true)}
+              onDetails={onDetails}
               onEdit={onEdit}
+              onDiscard={onDiscard}
               onRemove={onRemove}
             />
           </div>
         </div>
-      </Panel>
-
-      <Modal
-        title="Detalle del producto"
-        open={detailsOpen}
-        onClose={() => setDetailsOpen(false)}
-      >
-        <div className="grid gap-4 text-sm">
-          <div>
-            <div className="mb-1 font-medium text-muted-foreground">
-              Producto
-            </div>
-            <p className="font-semibold [overflow-wrap:anywhere]">
-              {product.name}
-            </p>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <div className="mb-1 font-medium text-muted-foreground">
-                Ubicacion
-              </div>
-              <p>
-                {product.area === 'fridge' ? 'Refrigeradora' : 'Despensa'}
-              </p>
-            </div>
-            <div>
-              <div className="mb-1 font-medium text-muted-foreground">
-                Vencimiento
-              </div>
-              <p>{formatDate(product.expiresAt)}</p>
-            </div>
-          </div>
-          <div>
-            <div className="mb-1 font-medium text-muted-foreground">
-              Cantidad
-            </div>
-            <p className="[overflow-wrap:anywhere]">{product.quantity}</p>
-          </div>
-          {product.notes ? (
-            <div>
-              <div className="mb-1 font-medium text-muted-foreground">
-                Notas
-              </div>
-              <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">
-                {product.notes}
-              </p>
-            </div>
-          ) : null}
-        </div>
-      </Modal>
-    </>
+    </Panel>
   )
 }
 
@@ -979,11 +1010,13 @@ function ProductActionsMenu({
   productName,
   onDetails,
   onEdit,
+  onDiscard,
   onRemove,
 }: {
   productName: string
   onDetails: () => void
   onEdit: () => void
+  onDiscard: () => void
   onRemove: () => void
 }) {
   const [open, setOpen] = React.useState(false)
@@ -1018,6 +1051,10 @@ function ProductActionsMenu({
           <MenuAction onClick={() => runAction(onEdit)}>
             <Pencil className="size-4" />
             Editar
+          </MenuAction>
+          <MenuAction onClick={() => runAction(onDiscard)}>
+            <Trash className="size-4" />
+            Tirar al tacho
           </MenuAction>
           <MenuAction destructive onClick={() => runAction(onRemove)}>
             <Trash2 className="size-4" />

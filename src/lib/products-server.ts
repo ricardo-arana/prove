@@ -1,11 +1,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 
-import type {
-  NewProductRecord,
-  ProductRecord,
-  StorageArea,
-} from '#/lib/products-db.ts'
+import type { ProductRecord, StorageArea } from '#/lib/products-db.ts'
 
 export interface ProductPhotoAnalysis {
   name: string
@@ -27,7 +23,36 @@ const ProductInputSchema = z.object({
   notes: z.string(),
   source: z.enum(['manual', 'ai']),
   imageUrl: z.string().optional(),
-}) satisfies z.ZodType<NewProductRecord>
+  price: z.string().optional(),
+})
+
+function parsePrice(value?: string): number | null {
+  if (!value) return null
+  const num = Number(value)
+  return Number.isFinite(num) && num > 0 ? num : null
+}
+
+function todayISO() {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function sixMonthsAgo() {
+  const d = new Date()
+  d.setMonth(d.getMonth() - 6)
+  return d.toISOString().slice(0, 10)
+}
+
+export interface PriceSummary {
+  history: Array<{ recordedAt: string; price: number }>
+  lowest: number | null
+  average: number | null
+  count: number
+}
+
+export interface ProductDetail {
+  product: ProductRecord
+  prices: PriceSummary
+}
 
 const DeleteProductSchema = z.object({
   id: z.string().min(1),
@@ -71,18 +96,102 @@ export const getProducts = createServerFn({ method: 'GET' }).handler(
 export const createProduct = createServerFn({ method: 'POST' })
   .inputValidator(ProductInputSchema)
   .handler(async ({ data }): Promise<ProductRecord | undefined> => {
-    const { insertProduct } = await import('#/lib/products-db.ts')
-    return insertProduct(data)
+    const { insertProduct, addPriceEntry } = await import('#/lib/products-db.ts')
+    const { price, ...record } = data
+    const created = insertProduct(record)
+
+    const value = parsePrice(price)
+    if (value !== null) addPriceEntry(record.name, value, todayISO())
+
+    return created
   })
 
 export const updateProduct = createServerFn({ method: 'POST' })
   .inputValidator(ProductInputSchema)
   .handler(async ({ data }): Promise<ProductRecord | undefined> => {
-    const { updateProduct: updateProductRecord } = await import(
+    const { updateProduct: updateProductRecord, addPriceEntry } = await import(
       '#/lib/products-db.ts'
     )
-    return updateProductRecord(data)
+    const { price, ...record } = data
+    const updated = updateProductRecord(record)
+
+    const value = parsePrice(price)
+    if (value !== null) addPriceEntry(record.name, value, todayISO())
+
+    return updated
   })
+
+const DiscardProductSchema = z.object({ id: z.string().min(1) })
+
+export const discardProduct = createServerFn({ method: 'POST' })
+  .inputValidator(DiscardProductSchema)
+  .handler(async ({ data }): Promise<ProductRecord | undefined> => {
+    const { discardProduct: discard } = await import('#/lib/products-db.ts')
+    return discard(data.id)
+  })
+
+const ProductIdSchema = z.object({ id: z.string().min(1) })
+
+export const getProductDetail = createServerFn({ method: 'GET' })
+  .inputValidator(ProductIdSchema)
+  .handler(async ({ data }): Promise<ProductDetail | null> => {
+    const { findProduct, listPriceHistory } = await import(
+      '#/lib/products-db.ts'
+    )
+    const product = findProduct(data.id)
+    if (!product) return null
+
+    const history = listPriceHistory(product.name, sixMonthsAgo())
+    return { product, prices: summarizePrices(history) }
+  })
+
+const AddPriceSchema = z.object({
+  name: z.string().min(1),
+  price: z.string().min(1),
+  recordedAt: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+})
+
+export const addProductPrice = createServerFn({ method: 'POST' })
+  .inputValidator(AddPriceSchema)
+  .handler(async ({ data }): Promise<PriceSummary> => {
+    const { addPriceEntry, listPriceHistory } = await import(
+      '#/lib/products-db.ts'
+    )
+    const value = parsePrice(data.price)
+    if (value === null) throw new Error('Precio inválido.')
+
+    addPriceEntry(data.name, value, data.recordedAt ?? todayISO())
+    return summarizePrices(listPriceHistory(data.name, sixMonthsAgo()))
+  })
+
+export const getAllProducts = createServerFn({ method: 'GET' }).handler(
+  async (): Promise<ProductRecord[]> => {
+    const { listAllProducts } = await import('#/lib/products-db.ts')
+    return listAllProducts()
+  },
+)
+
+export const getProductNames = createServerFn({ method: 'GET' }).handler(
+  async (): Promise<string[]> => {
+    const { listProductNames } = await import('#/lib/products-db.ts')
+    return listProductNames()
+  },
+)
+
+function summarizePrices(
+  history: Array<{ recordedAt: string; price: number }>,
+): PriceSummary {
+  if (history.length === 0) {
+    return { history, lowest: null, average: null, count: 0 }
+  }
+  const prices = history.map((h) => h.price)
+  const lowest = Math.min(...prices)
+  const average = prices.reduce((a, b) => a + b, 0) / prices.length
+  return { history, lowest, average, count: history.length }
+}
 
 export const removeProduct = createServerFn({ method: 'POST' })
   .inputValidator(DeleteProductSchema)

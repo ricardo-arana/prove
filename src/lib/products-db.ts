@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
@@ -14,9 +15,15 @@ export interface ProductRecord {
   source: 'manual' | 'ai'
   imageUrl?: string
   createdAt: string
+  discardedAt?: string | null
 }
 
-export type NewProductRecord = Omit<ProductRecord, 'createdAt'>
+export type NewProductRecord = Omit<ProductRecord, 'createdAt' | 'discardedAt'>
+
+export interface PriceEntry {
+  recordedAt: string // YYYY-MM-DD
+  price: number
+}
 
 const dbPath =
   process.env.SQLITE_DB_PATH ?? join(process.cwd(), 'data', 'prove.sqlite')
@@ -47,9 +54,32 @@ function getDb() {
 
     CREATE INDEX IF NOT EXISTS products_area_idx
       ON products (area);
+
+    CREATE TABLE IF NOT EXISTS price_history (
+      id TEXT PRIMARY KEY,
+      name_key TEXT NOT NULL,
+      product_name TEXT NOT NULL,
+      price REAL NOT NULL,
+      recorded_at TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS price_history_name_idx
+      ON price_history (name_key, recorded_at);
   `)
 
+  // Migración: columna discarded_at en bases existentes (ignora si ya existe).
+  try {
+    db.exec('ALTER TABLE products ADD COLUMN discarded_at TEXT')
+  } catch (error) {
+    if (!/duplicate column/i.test((error as Error).message)) throw error
+  }
+
   return db
+}
+
+function nameKey(name: string) {
+  return name.trim().toLowerCase()
 }
 
 export function listProducts() {
@@ -65,12 +95,78 @@ export function listProducts() {
           notes,
           source,
           image_url AS imageUrl,
-          created_at AS createdAt
+          created_at AS createdAt,
+          discarded_at AS discardedAt
         FROM products
+        WHERE discarded_at IS NULL
         ORDER BY expires_at ASC, created_at DESC
       `,
     )
     .all() as unknown as ProductRecord[]
+}
+
+export function listAllProducts() {
+  return getDb()
+    .prepare(
+      `
+        SELECT
+          id, name, area, expires_at AS expiresAt, quantity, notes,
+          source, image_url AS imageUrl, created_at AS createdAt,
+          discarded_at AS discardedAt
+        FROM products
+        ORDER BY discarded_at IS NOT NULL, expires_at ASC, created_at DESC
+      `,
+    )
+    .all() as unknown as ProductRecord[]
+}
+
+export function discardProduct(id: string) {
+  runWithWritableDb(() => {
+    getDb()
+      .prepare('UPDATE products SET discarded_at = ? WHERE id = ?')
+      .run(new Date().toISOString(), id)
+  })
+  return findProduct(id)
+}
+
+export function addPriceEntry(name: string, price: number, recordedAt: string) {
+  runWithWritableDb(() => {
+    getDb()
+      .prepare(
+        `
+          INSERT INTO price_history (id, name_key, product_name, price, recorded_at)
+          VALUES (?, ?, ?, ?, ?)
+        `,
+      )
+      .run(randomUUID(), nameKey(name), name.trim(), price, recordedAt)
+  })
+}
+
+export function listPriceHistory(name: string, sinceDate: string) {
+  return getDb()
+    .prepare(
+      `
+        SELECT recorded_at AS recordedAt, price
+        FROM price_history
+        WHERE name_key = ? AND recorded_at >= ?
+        ORDER BY recorded_at ASC, created_at ASC
+      `,
+    )
+    .all(nameKey(name), sinceDate) as unknown as PriceEntry[]
+}
+
+export function listProductNames() {
+  const rows = getDb()
+    .prepare(
+      `
+        SELECT name FROM products
+        UNION
+        SELECT product_name AS name FROM price_history
+        ORDER BY name COLLATE NOCASE ASC
+      `,
+    )
+    .all() as unknown as Array<{ name: string }>
+  return rows.map((r) => r.name)
 }
 
 export function listProductsExpiringInRange(
@@ -90,14 +186,22 @@ export function listProductsExpiringInRange(
           notes,
           source,
           image_url AS imageUrl,
-          created_at AS createdAt
+          created_at AS createdAt,
+          (
+            SELECT ph.price FROM price_history ph
+            WHERE ph.name_key = lower(trim(products.name))
+            ORDER BY ph.recorded_at DESC, ph.created_at DESC
+            LIMIT 1
+          ) AS lastPrice
         FROM products
         WHERE expires_at < ?              -- ya vencidos hasta hoy
            OR expires_at BETWEEN ? AND ?  -- por vencer dentro del rango
         ORDER BY expires_at ASC, created_at DESC
       `,
     )
-    .all(today, start, end) as unknown as ProductRecord[]
+    .all(today, start, end) as unknown as Array<
+    ProductRecord & { lastPrice: number | null }
+  >
 }
 
 export function insertProduct(product: NewProductRecord) {
@@ -194,7 +298,7 @@ function isReadonlyDatabaseError(error: unknown) {
   return /readonly database/i.test(error.message)
 }
 
-function findProduct(id: string) {
+export function findProduct(id: string) {
   return getDb()
     .prepare(
       `
@@ -207,7 +311,8 @@ function findProduct(id: string) {
           notes,
           source,
           image_url AS imageUrl,
-          created_at AS createdAt
+          created_at AS createdAt,
+          discarded_at AS discardedAt
         FROM products
         WHERE id = ?
       `,
