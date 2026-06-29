@@ -9,12 +9,23 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as CategoriesRouteImport } from './routes/categories'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProductsIndexRouteImport } from './routes/products/index'
+import { Route as ListsIndexRouteImport } from './routes/lists/index'
 import { Route as ProductsProductIdRouteImport } from './routes/products/$productId'
+import { Route as ListsListIdRouteImport } from './routes/lists/$listId'
 import { Route as ApiProductsIndexRouteImport } from './routes/api/products/index'
+import { Route as ApiListsIndexRouteImport } from './routes/api/lists/index'
 import { Route as ApiProductsExpiringRouteImport } from './routes/api/products/expiring'
+import { Route as ApiListsListIdIndexRouteImport } from './routes/api/lists/$listId/index'
+import { Route as ApiListsListIdItemsRouteImport } from './routes/api/lists/$listId/items'
 
+const CategoriesRoute = CategoriesRouteImport.update({
+  id: '/categories',
+  path: '/categories',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -25,9 +36,19 @@ const ProductsIndexRoute = ProductsIndexRouteImport.update({
   path: '/products/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ListsIndexRoute = ListsIndexRouteImport.update({
+  id: '/lists/',
+  path: '/lists/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProductsProductIdRoute = ProductsProductIdRouteImport.update({
   id: '/products/$productId',
   path: '/products/$productId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ListsListIdRoute = ListsListIdRouteImport.update({
+  id: '/lists/$listId',
+  path: '/lists/$listId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiProductsIndexRoute = ApiProductsIndexRouteImport.update({
@@ -35,68 +56,132 @@ const ApiProductsIndexRoute = ApiProductsIndexRouteImport.update({
   path: '/api/products/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiListsIndexRoute = ApiListsIndexRouteImport.update({
+  id: '/api/lists/',
+  path: '/api/lists/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiProductsExpiringRoute = ApiProductsExpiringRouteImport.update({
   id: '/api/products/expiring',
   path: '/api/products/expiring',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiListsListIdIndexRoute = ApiListsListIdIndexRouteImport.update({
+  id: '/api/lists/$listId/',
+  path: '/api/lists/$listId/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiListsListIdItemsRoute = ApiListsListIdItemsRouteImport.update({
+  id: '/api/lists/$listId/items',
+  path: '/api/lists/$listId/items',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/categories': typeof CategoriesRoute
+  '/lists/$listId': typeof ListsListIdRoute
   '/products/$productId': typeof ProductsProductIdRoute
+  '/lists/': typeof ListsIndexRoute
   '/products/': typeof ProductsIndexRoute
   '/api/products/expiring': typeof ApiProductsExpiringRoute
+  '/api/lists/': typeof ApiListsIndexRoute
   '/api/products/': typeof ApiProductsIndexRoute
+  '/api/lists/$listId/items': typeof ApiListsListIdItemsRoute
+  '/api/lists/$listId/': typeof ApiListsListIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/categories': typeof CategoriesRoute
+  '/lists/$listId': typeof ListsListIdRoute
   '/products/$productId': typeof ProductsProductIdRoute
+  '/lists': typeof ListsIndexRoute
   '/products': typeof ProductsIndexRoute
   '/api/products/expiring': typeof ApiProductsExpiringRoute
+  '/api/lists': typeof ApiListsIndexRoute
   '/api/products': typeof ApiProductsIndexRoute
+  '/api/lists/$listId/items': typeof ApiListsListIdItemsRoute
+  '/api/lists/$listId': typeof ApiListsListIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/categories': typeof CategoriesRoute
+  '/lists/$listId': typeof ListsListIdRoute
   '/products/$productId': typeof ProductsProductIdRoute
+  '/lists/': typeof ListsIndexRoute
   '/products/': typeof ProductsIndexRoute
   '/api/products/expiring': typeof ApiProductsExpiringRoute
+  '/api/lists/': typeof ApiListsIndexRoute
   '/api/products/': typeof ApiProductsIndexRoute
+  '/api/lists/$listId/items': typeof ApiListsListIdItemsRoute
+  '/api/lists/$listId/': typeof ApiListsListIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/categories'
+    | '/lists/$listId'
     | '/products/$productId'
+    | '/lists/'
     | '/products/'
     | '/api/products/expiring'
+    | '/api/lists/'
     | '/api/products/'
+    | '/api/lists/$listId/items'
+    | '/api/lists/$listId/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/categories'
+    | '/lists/$listId'
     | '/products/$productId'
+    | '/lists'
     | '/products'
     | '/api/products/expiring'
+    | '/api/lists'
     | '/api/products'
+    | '/api/lists/$listId/items'
+    | '/api/lists/$listId'
   id:
     | '__root__'
     | '/'
+    | '/categories'
+    | '/lists/$listId'
     | '/products/$productId'
+    | '/lists/'
     | '/products/'
     | '/api/products/expiring'
+    | '/api/lists/'
     | '/api/products/'
+    | '/api/lists/$listId/items'
+    | '/api/lists/$listId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CategoriesRoute: typeof CategoriesRoute
+  ListsListIdRoute: typeof ListsListIdRoute
   ProductsProductIdRoute: typeof ProductsProductIdRoute
+  ListsIndexRoute: typeof ListsIndexRoute
   ProductsIndexRoute: typeof ProductsIndexRoute
   ApiProductsExpiringRoute: typeof ApiProductsExpiringRoute
+  ApiListsIndexRoute: typeof ApiListsIndexRoute
   ApiProductsIndexRoute: typeof ApiProductsIndexRoute
+  ApiListsListIdItemsRoute: typeof ApiListsListIdItemsRoute
+  ApiListsListIdIndexRoute: typeof ApiListsListIdIndexRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/categories': {
+      id: '/categories'
+      path: '/categories'
+      fullPath: '/categories'
+      preLoaderRoute: typeof CategoriesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -111,11 +196,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProductsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/lists/': {
+      id: '/lists/'
+      path: '/lists'
+      fullPath: '/lists/'
+      preLoaderRoute: typeof ListsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/products/$productId': {
       id: '/products/$productId'
       path: '/products/$productId'
       fullPath: '/products/$productId'
       preLoaderRoute: typeof ProductsProductIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lists/$listId': {
+      id: '/lists/$listId'
+      path: '/lists/$listId'
+      fullPath: '/lists/$listId'
+      preLoaderRoute: typeof ListsListIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/products/': {
@@ -125,6 +224,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiProductsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/lists/': {
+      id: '/api/lists/'
+      path: '/api/lists'
+      fullPath: '/api/lists/'
+      preLoaderRoute: typeof ApiListsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/products/expiring': {
       id: '/api/products/expiring'
       path: '/api/products/expiring'
@@ -132,15 +238,35 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiProductsExpiringRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/lists/$listId/': {
+      id: '/api/lists/$listId/'
+      path: '/api/lists/$listId'
+      fullPath: '/api/lists/$listId/'
+      preLoaderRoute: typeof ApiListsListIdIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/lists/$listId/items': {
+      id: '/api/lists/$listId/items'
+      path: '/api/lists/$listId/items'
+      fullPath: '/api/lists/$listId/items'
+      preLoaderRoute: typeof ApiListsListIdItemsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CategoriesRoute: CategoriesRoute,
+  ListsListIdRoute: ListsListIdRoute,
   ProductsProductIdRoute: ProductsProductIdRoute,
+  ListsIndexRoute: ListsIndexRoute,
   ProductsIndexRoute: ProductsIndexRoute,
   ApiProductsExpiringRoute: ApiProductsExpiringRoute,
+  ApiListsIndexRoute: ApiListsIndexRoute,
   ApiProductsIndexRoute: ApiProductsIndexRoute,
+  ApiListsListIdItemsRoute: ApiListsListIdItemsRoute,
+  ApiListsListIdIndexRoute: ApiListsListIdIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

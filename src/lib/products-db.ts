@@ -16,6 +16,7 @@ export interface ProductRecord {
   imageUrl?: string
   createdAt: string
   discardedAt?: string | null
+  categoryId?: string | null
 }
 
 export type NewProductRecord = Omit<ProductRecord, 'createdAt' | 'discardedAt'>
@@ -23,6 +24,25 @@ export type NewProductRecord = Omit<ProductRecord, 'createdAt' | 'discardedAt'>
 export interface PriceEntry {
   recordedAt: string // YYYY-MM-DD
   price: number
+}
+
+export interface CategoryRecord {
+  id: string
+  name: string
+  icon: string // emoji
+  color: string // hex
+}
+
+export interface ShoppingListRecord {
+  id: string
+  name: string
+  itemCount: number
+}
+
+export interface ShoppingListItemRecord {
+  id: string
+  productName: string
+  categoryId: string | null
 }
 
 const dbPath =
@@ -66,13 +86,43 @@ function getDb() {
 
     CREATE INDEX IF NOT EXISTS price_history_name_idx
       ON price_history (name_key, recorded_at);
+
+    CREATE TABLE IF NOT EXISTS categories (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      icon TEXT NOT NULL DEFAULT '',
+      color TEXT NOT NULL DEFAULT '#888888',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS shopping_lists (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS shopping_list_items (
+      id TEXT PRIMARY KEY,
+      list_id TEXT NOT NULL,
+      product_name TEXT NOT NULL,
+      category_id TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS sli_list_idx
+      ON shopping_list_items (list_id);
   `)
 
-  // Migración: columna discarded_at en bases existentes (ignora si ya existe).
-  try {
-    db.exec('ALTER TABLE products ADD COLUMN discarded_at TEXT')
-  } catch (error) {
-    if (!/duplicate column/i.test((error as Error).message)) throw error
+  // Migraciones: columnas nuevas en bases existentes (ignora si ya existen).
+  for (const sql of [
+    'ALTER TABLE products ADD COLUMN discarded_at TEXT',
+    'ALTER TABLE products ADD COLUMN category_id TEXT',
+  ]) {
+    try {
+      db.exec(sql)
+    } catch (error) {
+      if (!/duplicate column/i.test((error as Error).message)) throw error
+    }
   }
 
   return db
@@ -96,7 +146,8 @@ export function listProducts() {
           source,
           image_url AS imageUrl,
           created_at AS createdAt,
-          discarded_at AS discardedAt
+          discarded_at AS discardedAt,
+          category_id AS categoryId
         FROM products
         WHERE discarded_at IS NULL
         ORDER BY expires_at ASC, created_at DESC
@@ -112,7 +163,7 @@ export function listAllProducts() {
         SELECT
           id, name, area, expires_at AS expiresAt, quantity, notes,
           source, image_url AS imageUrl, created_at AS createdAt,
-          discarded_at AS discardedAt
+          discarded_at AS discardedAt, category_id AS categoryId
         FROM products
         ORDER BY discarded_at IS NOT NULL, expires_at ASC, created_at DESC
       `,
@@ -217,9 +268,10 @@ export function insertProduct(product: NewProductRecord) {
             quantity,
             notes,
             source,
-            image_url
+            image_url,
+            category_id
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
       )
       .run(
@@ -231,6 +283,7 @@ export function insertProduct(product: NewProductRecord) {
         product.notes,
         product.source,
         product.imageUrl ?? null,
+        product.categoryId ?? null,
       )
   })
 
@@ -250,7 +303,8 @@ export function updateProduct(product: NewProductRecord) {
             quantity = ?,
             notes = ?,
             source = ?,
-            image_url = ?
+            image_url = ?,
+            category_id = ?
           WHERE id = ?
         `,
       )
@@ -262,6 +316,7 @@ export function updateProduct(product: NewProductRecord) {
         product.notes,
         product.source,
         product.imageUrl ?? null,
+        product.categoryId ?? null,
         product.id,
       )
   })
@@ -272,6 +327,138 @@ export function updateProduct(product: NewProductRecord) {
 export function deleteProduct(id: string) {
   runWithWritableDb(() => {
     getDb().prepare('DELETE FROM products WHERE id = ?').run(id)
+  })
+  return { success: true }
+}
+
+export function listCategories() {
+  return getDb()
+    .prepare(
+      'SELECT id, name, icon, color FROM categories ORDER BY name COLLATE NOCASE ASC',
+    )
+    .all() as unknown as CategoryRecord[]
+}
+
+export function insertCategory(category: CategoryRecord) {
+  runWithWritableDb(() => {
+    getDb()
+      .prepare(
+        'INSERT INTO categories (id, name, icon, color) VALUES (?, ?, ?, ?)',
+      )
+      .run(category.id, category.name, category.icon, category.color)
+  })
+  return category
+}
+
+export function updateCategory(category: CategoryRecord) {
+  runWithWritableDb(() => {
+    getDb()
+      .prepare(
+        'UPDATE categories SET name = ?, icon = ?, color = ? WHERE id = ?',
+      )
+      .run(category.name, category.icon, category.color, category.id)
+  })
+  return category
+}
+
+export function deleteCategory(id: string) {
+  runWithWritableDb(() => {
+    // ponytail: deja category_id colgando en productos; el form trata id inexistente como "sin categoría"
+    getDb().prepare('DELETE FROM categories WHERE id = ?').run(id)
+  })
+  return { success: true }
+}
+
+export function listShoppingLists() {
+  return getDb()
+    .prepare(
+      `
+        SELECT
+          l.id, l.name,
+          (SELECT COUNT(*) FROM shopping_list_items i WHERE i.list_id = l.id)
+            AS itemCount
+        FROM shopping_lists l
+        ORDER BY l.created_at DESC
+      `,
+    )
+    .all() as unknown as ShoppingListRecord[]
+}
+
+export function findShoppingList(id: string) {
+  return getDb()
+    .prepare('SELECT id, name FROM shopping_lists WHERE id = ?')
+    .get(id) as unknown as { id: string; name: string } | undefined
+}
+
+export function insertShoppingList(id: string, name: string) {
+  runWithWritableDb(() => {
+    getDb()
+      .prepare('INSERT INTO shopping_lists (id, name) VALUES (?, ?)')
+      .run(id, name)
+  })
+  return { id, name, itemCount: 0 }
+}
+
+export function updateShoppingList(id: string, name: string) {
+  runWithWritableDb(() => {
+    getDb()
+      .prepare('UPDATE shopping_lists SET name = ? WHERE id = ?')
+      .run(name, id)
+  })
+}
+
+export function deleteShoppingList(id: string) {
+  runWithWritableDb(() => {
+    getDb().prepare('DELETE FROM shopping_list_items WHERE list_id = ?').run(id)
+    getDb().prepare('DELETE FROM shopping_lists WHERE id = ?').run(id)
+  })
+  return { success: true }
+}
+
+export function listShoppingListItems(listId: string) {
+  return getDb()
+    .prepare(
+      `
+        SELECT id, product_name AS productName, category_id AS categoryId
+        FROM shopping_list_items
+        WHERE list_id = ?
+        ORDER BY created_at ASC
+      `,
+    )
+    .all(listId) as unknown as ShoppingListItemRecord[]
+}
+
+export function addShoppingListItem(
+  id: string,
+  listId: string,
+  productName: string,
+  categoryId: string | null,
+) {
+  runWithWritableDb(() => {
+    getDb()
+      .prepare(
+        `
+          INSERT INTO shopping_list_items (id, list_id, product_name, category_id)
+          VALUES (?, ?, ?, ?)
+        `,
+      )
+      .run(id, listId, productName, categoryId)
+  })
+}
+
+export function findProductCategoryId(name: string): string | null {
+  const row = getDb()
+    .prepare(
+      `SELECT category_id AS categoryId FROM products
+       WHERE name = ? ORDER BY created_at DESC LIMIT 1`,
+    )
+    .get(name) as { categoryId: string | null } | undefined
+  return row?.categoryId ?? null
+}
+
+export function removeShoppingListItem(id: string) {
+  runWithWritableDb(() => {
+    getDb().prepare('DELETE FROM shopping_list_items WHERE id = ?').run(id)
   })
   return { success: true }
 }
@@ -312,7 +499,8 @@ export function findProduct(id: string) {
           source,
           image_url AS imageUrl,
           created_at AS createdAt,
-          discarded_at AS discardedAt
+          discarded_at AS discardedAt,
+          category_id AS categoryId
         FROM products
         WHERE id = ?
       `,

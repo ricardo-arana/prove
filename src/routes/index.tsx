@@ -37,6 +37,7 @@ import {
   analyzeProductPhoto,
   createProduct,
   discardProduct,
+  getCategories,
   getProductNames,
   getProducts,
   removeProduct,
@@ -46,7 +47,11 @@ import {
 import { formatRemaining } from '#/lib/format-remaining.ts'
 import { cn } from '#/lib/utils.ts'
 
-import type { ProductRecord, StorageArea } from '#/lib/products-server.ts'
+import type {
+  CategoryRecord,
+  ProductRecord,
+  StorageArea,
+} from '#/lib/products-server.ts'
 
 export const Route = createFileRoute('/')({ component: Home })
 
@@ -59,6 +64,7 @@ interface ProductFormState {
   quantity: string
   notes: string
   price: string
+  categoryId: string
 }
 
 const emptyForm: ProductFormState = {
@@ -68,6 +74,7 @@ const emptyForm: ProductFormState = {
   quantity: '1 unidad',
   notes: '',
   price: '',
+  categoryId: '',
 }
 
 const PRODUCT_SUMMARY_LIMITS = {
@@ -90,10 +97,12 @@ function Home() {
   const removeProductFn = useServerFn(removeProduct)
   const discardProductFn = useServerFn(discardProduct)
   const getProductNamesFn = useServerFn(getProductNames)
+  const getCategoriesFn = useServerFn(getCategories)
   const suggestProductExpirationFn = useServerFn(suggestProductExpiration)
   const analyzeProductPhotoFn = useServerFn(analyzeProductPhoto)
   const [products, setProducts] = React.useState<Product[]>([])
   const [productNames, setProductNames] = React.useState<string[]>([])
+  const [categories, setCategories] = React.useState<CategoryRecord[]>([])
   const [form, setForm] = React.useState<ProductFormState>(emptyForm)
   const [editingProduct, setEditingProduct] = React.useState<Product | null>(
     null,
@@ -142,6 +151,16 @@ function Home() {
       active = false
     }
   }, [getProductNamesFn])
+
+  React.useEffect(() => {
+    let active = true
+    getCategoriesFn().then((loaded) => {
+      if (active) setCategories(loaded)
+    })
+    return () => {
+      active = false
+    }
+  }, [getCategoriesFn])
 
   React.useEffect(() => {
     return () => stopCamera()
@@ -208,6 +227,7 @@ function Home() {
       quantity: product.quantity,
       notes: product.notes,
       price: '',
+      categoryId: product.categoryId ?? '',
     })
     setScanPreview(product.imageUrl ?? '')
     setAiStatus(product.source === 'ai' ? 'ready' : 'idle')
@@ -242,6 +262,7 @@ function Home() {
       source: editingProduct?.source ?? source,
       imageUrl: scanPreview || editingProduct?.imageUrl || undefined,
       price: form.price.trim() || undefined,
+      categoryId: form.categoryId || null,
     }
 
     try {
@@ -522,7 +543,19 @@ function Home() {
             </div>
           </Panel>
 
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-4">
+            <Link
+              to="/lists"
+              className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+            >
+              Listas de compras
+            </Link>
+            <Link
+              to="/categories"
+              className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+            >
+              Categorías
+            </Link>
             <Link
               to="/products"
               className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
@@ -531,9 +564,9 @@ function Home() {
             </Link>
           </div>
 
-          <div className="grid gap-3">
+          <div className="grid gap-3 lg:grid-cols-2">
             {loadingProducts ? (
-              <Panel className="flex min-h-56 items-center justify-center text-center">
+              <Panel className="flex min-h-56 items-center justify-center text-center lg:col-span-2">
                 <div>
                   <Sparkles className="mx-auto mb-3 size-8 animate-pulse text-primary" />
                   <h2 className="font-semibold">Cargando inventario</h2>
@@ -543,10 +576,11 @@ function Home() {
                 </div>
               </Panel>
             ) : (
-              filteredProducts.map((product) => (
+              filteredProducts.map((product, index) => (
                 <ProductRow
                   key={product.id}
                   product={product}
+                  index={index}
                   onDetails={() =>
                     navigate({
                       to: '/products/$productId',
@@ -561,7 +595,7 @@ function Home() {
             )}
 
             {!loadingProducts && !filteredProducts.length ? (
-              <Panel className="flex min-h-56 items-center justify-center text-center">
+              <Panel className="flex min-h-56 items-center justify-center text-center lg:col-span-2">
                 <div>
                   <ChefHat className="mx-auto mb-3 size-8 text-muted-foreground" />
                   <h2 className="font-semibold">No hay productos aqui</h2>
@@ -623,6 +657,28 @@ function Home() {
               />
             </Field>
           </div>
+
+          <Field label="Categoría (opcional)">
+            <Select
+              value={form.categoryId || 'none'}
+              onValueChange={(value) =>
+                updateForm('categoryId', value === 'none' ? '' : value)
+              }
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Sin categoría</SelectItem>
+                {categories.map((category) => (
+                  <SelectItem key={category.id} value={category.id}>
+                    {category.icon ? `${category.icon} ` : ''}
+                    {category.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
 
           <Field label="Precio de compra (opcional)" htmlFor="price">
             <div className="flex items-center gap-2">
@@ -785,9 +841,11 @@ function Home() {
 function Panel({
   children,
   className,
+  style,
 }: {
   children: React.ReactNode
   className?: string
+  style?: React.CSSProperties
 }) {
   return (
     <div
@@ -795,6 +853,7 @@ function Panel({
         'min-w-0 rounded-lg border border-border bg-card p-5 text-card-foreground shadow-sm',
         className,
       )}
+      style={style}
     >
       {children}
     </div>
@@ -840,11 +899,11 @@ function Modal({
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-3 sm:items-center">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-3 duration-200 animate-in fade-in sm:items-center">
       <div className="absolute inset-0" aria-hidden="true" onClick={onClose} />
       <section
         aria-modal="true"
-        className="relative max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-lg border border-border bg-card p-5 text-card-foreground shadow-lg"
+        className="relative max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-lg border border-border bg-card p-5 text-card-foreground shadow-lg duration-200 animate-in fade-in zoom-in-95 motion-reduce:animate-none sm:items-center"
         role="dialog"
       >
         <div className="mb-5 flex items-center justify-between gap-3">
@@ -932,12 +991,14 @@ function FilterButton({
 
 function ProductRow({
   product,
+  index = 0,
   onDetails,
   onEdit,
   onDiscard,
   onRemove,
 }: {
   product: Product
+  index?: number
   onDetails: () => void
   onEdit: () => void
   onDiscard: () => void
@@ -953,7 +1014,10 @@ function ProductRow({
   const displayNotes = truncateText(product.notes, PRODUCT_SUMMARY_LIMITS.notes)
 
   return (
-    <Panel className="p-4">
+    <Panel
+      className="p-4 duration-300 animate-in fade-in slide-in-from-bottom-2 fill-mode-backwards motion-reduce:animate-none"
+      style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}
+    >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex w-full min-w-0 gap-3">
             <div className="flex size-11 shrink-0 items-center justify-center rounded-md bg-accent text-accent-foreground">
@@ -1041,7 +1105,7 @@ function ProductActionsMenu({
 
       {open ? (
         <div
-          className="absolute right-0 top-10 z-20 grid min-w-40 overflow-hidden rounded-md border border-border bg-popover py-1 text-popover-foreground shadow-lg"
+          className="absolute right-0 top-10 z-20 grid min-w-40 origin-top-right overflow-hidden rounded-md border border-border bg-popover py-1 text-popover-foreground shadow-lg duration-150 animate-in fade-in zoom-in-95 motion-reduce:animate-none"
           role="menu"
         >
           <MenuAction onClick={() => runAction(onDetails)}>

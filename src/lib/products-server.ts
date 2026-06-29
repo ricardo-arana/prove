@@ -1,7 +1,12 @@
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 
-import type { ProductRecord, StorageArea } from '#/lib/products-db.ts'
+import type {
+  CategoryRecord,
+  ProductRecord,
+  ShoppingListRecord,
+  StorageArea,
+} from '#/lib/products-db.ts'
 
 export interface ProductPhotoAnalysis {
   name: string
@@ -24,6 +29,7 @@ const ProductInputSchema = z.object({
   source: z.enum(['manual', 'ai']),
   imageUrl: z.string().optional(),
   price: z.string().optional(),
+  categoryId: z.string().nullable().optional(),
 })
 
 function parsePrice(value?: string): number | null {
@@ -173,6 +179,139 @@ export const getAllProducts = createServerFn({ method: 'GET' }).handler(
     return listAllProducts()
   },
 )
+
+const CategoryInputSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  icon: z.string(),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'usar color hex #RRGGBB'),
+})
+
+export const getCategories = createServerFn({ method: 'GET' }).handler(
+  async (): Promise<CategoryRecord[]> => {
+    const { listCategories } = await import('#/lib/products-db.ts')
+    return listCategories()
+  },
+)
+
+export const createCategory = createServerFn({ method: 'POST' })
+  .inputValidator(CategoryInputSchema)
+  .handler(async ({ data }): Promise<CategoryRecord> => {
+    const { insertCategory } = await import('#/lib/products-db.ts')
+    return insertCategory(data)
+  })
+
+export const updateCategory = createServerFn({ method: 'POST' })
+  .inputValidator(CategoryInputSchema)
+  .handler(async ({ data }): Promise<CategoryRecord> => {
+    const { updateCategory: update } = await import('#/lib/products-db.ts')
+    return update(data)
+  })
+
+export const removeCategory = createServerFn({ method: 'POST' })
+  .inputValidator(z.object({ id: z.string().min(1) }))
+  .handler(async ({ data }) => {
+    const { deleteCategory } = await import('#/lib/products-db.ts')
+    return deleteCategory(data.id)
+  })
+
+export interface ShoppingListItemDetail {
+  id: string
+  productName: string
+  categoryId: string | null
+  lowest: number | null
+  average: number | null
+  count: number
+}
+
+export interface ShoppingListDetail {
+  list: { id: string; name: string }
+  items: ShoppingListItemDetail[]
+  categories: CategoryRecord[]
+}
+
+export const getShoppingLists = createServerFn({ method: 'GET' }).handler(
+  async (): Promise<ShoppingListRecord[]> => {
+    const { listShoppingLists } = await import('#/lib/products-db.ts')
+    return listShoppingLists()
+  },
+)
+
+export const createShoppingList = createServerFn({ method: 'POST' })
+  .inputValidator(z.object({ id: z.string().min(1), name: z.string().min(1) }))
+  .handler(async ({ data }): Promise<ShoppingListRecord> => {
+    const { insertShoppingList } = await import('#/lib/products-db.ts')
+    return insertShoppingList(data.id, data.name)
+  })
+
+export const updateShoppingList = createServerFn({ method: 'POST' })
+  .inputValidator(z.object({ id: z.string().min(1), name: z.string().min(1) }))
+  .handler(async ({ data }) => {
+    const { updateShoppingList: update } = await import('#/lib/products-db.ts')
+    update(data.id, data.name)
+    return { id: data.id, name: data.name }
+  })
+
+export const removeShoppingList = createServerFn({ method: 'POST' })
+  .inputValidator(z.object({ id: z.string().min(1) }))
+  .handler(async ({ data }) => {
+    const { deleteShoppingList } = await import('#/lib/products-db.ts')
+    return deleteShoppingList(data.id)
+  })
+
+export const getShoppingListDetail = createServerFn({ method: 'GET' })
+  .inputValidator(z.object({ id: z.string().min(1) }))
+  .handler(async ({ data }): Promise<ShoppingListDetail | null> => {
+    const {
+      findShoppingList,
+      listShoppingListItems,
+      listPriceHistory,
+      listCategories,
+    } = await import('#/lib/products-db.ts')
+
+    const list = findShoppingList(data.id)
+    if (!list) return null
+
+    const items = listShoppingListItems(data.id).map((item) => {
+      const summary = summarizePrices(
+        listPriceHistory(item.productName, '0000-01-01'),
+      )
+      return {
+        id: item.id,
+        productName: item.productName,
+        categoryId: item.categoryId,
+        lowest: summary.lowest,
+        average: summary.average,
+        count: summary.count,
+      }
+    })
+
+    return { list, items, categories: listCategories() }
+  })
+
+export const addShoppingListItem = createServerFn({ method: 'POST' })
+  .inputValidator(
+    z.object({
+      listId: z.string().min(1),
+      productName: z.string().min(1),
+      categoryId: z.string().nullable().optional(),
+    }),
+  )
+  .handler(async ({ data }) => {
+    const { addShoppingListItem: add } = await import('#/lib/products-db.ts')
+    const id = crypto.randomUUID()
+    add(id, data.listId, data.productName, data.categoryId ?? null)
+    return { id }
+  })
+
+export const removeShoppingListItem = createServerFn({ method: 'POST' })
+  .inputValidator(z.object({ id: z.string().min(1) }))
+  .handler(async ({ data }) => {
+    const { removeShoppingListItem: remove } = await import(
+      '#/lib/products-db.ts'
+    )
+    return remove(data.id)
+  })
 
 export const getProductNames = createServerFn({ method: 'GET' }).handler(
   async (): Promise<string[]> => {
@@ -393,7 +532,7 @@ export const analyzeProductPhoto = createServerFn({ method: 'POST' })
     }
   })
 
-export type { ProductRecord, StorageArea }
+export type { CategoryRecord, ProductRecord, StorageArea }
 
 interface OpenAIResponsesPayload {
   output_text?: string

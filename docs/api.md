@@ -1,10 +1,17 @@
-# API — Productos
+# API
 
-Endpoints HTTP REST para listar productos por vencer/vencidos y para agregar
-productos nuevos.
+Endpoints HTTP REST de Prove. Base URL en desarrollo: `http://localhost:3200`.
+
+**Productos**
 
 - [`GET /api/products/expiring`](#get-apiproductsexpiring) — por vencer / vencidos.
 - [`POST /api/products`](#post-apiproducts) — agregar producto.
+
+**Listas de compras**
+
+- [`GET /api/lists`](#get-apilists) — todas las listas.
+- [`GET /api/lists/:listId`](#get-apilistslistid) — detalle de una lista.
+- [`POST /api/lists/:listId/items`](#post-apilistslistiditems) — agregar producto a una lista.
 
 ---
 
@@ -59,7 +66,8 @@ Los resultados vienen ordenados por `expiresAt` ascendente.
       "notes": "...",
       "source": "ai",
       "createdAt": "2026-05-31 10:42:00",
-      "status": "expired"
+      "status": "expired",
+      "lastPrice": 4.9
     },
     {
       "id": "8c0f...",
@@ -70,18 +78,20 @@ Los resultados vienen ordenados por `expiresAt` ascendente.
       "notes": "",
       "source": "manual",
       "createdAt": "2026-06-20 09:00:00",
-      "status": "expiring"
+      "status": "expiring",
+      "lastPrice": null
     }
   ]
 }
 ```
 
-| Campo               | Tipo               | Descripción                               |
-| ------------------- | ------------------ | ----------------------------------------- |
-| `today`             | string             | Fecha del servidor usada como corte (UTC).|
-| `count`             | number             | Cantidad de productos devueltos.          |
-| `products`          | array              | Lista de productos.                       |
-| `products[].status` | `expired`/`expiring` | Estado calculado contra `today`.        |
+| Campo                  | Tipo                 | Descripción                                       |
+| ---------------------- | -------------------- | ------------------------------------------------- |
+| `today`                | string               | Fecha del servidor usada como corte (UTC).        |
+| `count`                | number               | Cantidad de productos devueltos.                  |
+| `products`             | array                | Lista de productos.                               |
+| `products[].status`    | `expired`/`expiring` | Estado calculado contra `today`.                  |
+| `products[].lastPrice` | number \| null       | Último precio registrado del producto (por nombre); `null` si no tiene. |
 
 (Los demás campos de cada producto son los del registro: `id`, `name`, `area`
 `'fridge' | 'pantry'`, `expiresAt`, `quantity`, `notes`, `source`
@@ -144,10 +154,11 @@ Content-Type: application/json
 | `notes`     | No        | string                 | `""`        | Notas.                            |
 | `source`    | No        | `"manual"` \| `"ai"`   | `"manual"`  | Origen del registro.              |
 | `imageUrl`  | No        | string                 | —           | Imagen (no se devuelve).          |
+| `price`     | No        | number (> 0)           | —           | Precio de compra (soles). Se guarda en el historial de precios del producto. |
 
 ### Respuesta `201 Created`
 
-Devuelve el producto creado (sin `imageUrl`):
+Devuelve el producto creado (sin `imageUrl`) y el `price` registrado (o `null`):
 
 ```json
 {
@@ -159,8 +170,11 @@ Devuelve el producto creado (sin `imageUrl`):
     "quantity": "2",
     "notes": "",
     "source": "manual",
-    "createdAt": "2026-06-28 04:41:58"
-  }
+    "createdAt": "2026-06-28 04:41:58",
+    "discardedAt": null,
+    "categoryId": null
+  },
+  "price": 3.9
 }
 ```
 
@@ -195,3 +209,143 @@ const { product } = await res.json()
 | `500`  | No se pudo crear el producto        | `{ "error": "No se pudo crear el producto." }`           |
 
 `issues` es el detalle de validación de Zod (qué campo falló y por qué).
+
+---
+
+## GET /api/lists
+
+Devuelve todas las listas de compras con su cantidad de items.
+
+```
+GET /api/lists
+```
+
+### Respuesta `200`
+
+```json
+{
+  "lists": [
+    { "id": "apilist-bc7581", "name": "Lista de la semana", "itemCount": 3 },
+    { "id": "2644fbb8-...", "name": "Despensa", "itemCount": 0 }
+  ]
+}
+```
+
+| Campo               | Tipo   | Descripción                  |
+| ------------------- | ------ | ---------------------------- |
+| `lists[].id`        | string | ID de la lista.              |
+| `lists[].name`      | string | Nombre.                      |
+| `lists[].itemCount` | number | Cantidad de productos en la lista. |
+
+```bash
+curl 'http://localhost:3200/api/lists'
+```
+
+---
+
+## GET /api/lists/:listId
+
+Detalle de una lista: sus items con precio más bajo y promedio (calculados del
+historial de precios del producto, por nombre), y las categorías para agrupar.
+
+```
+GET /api/lists/:listId
+```
+
+### Respuesta `200`
+
+```json
+{
+  "list": { "id": "apilist-bc7581", "name": "Lista de la semana" },
+  "items": [
+    {
+      "id": "b675b11a-...",
+      "productName": "Leche",
+      "categoryId": "cat-lacteos",
+      "lowest": 3.5,
+      "average": 4.0,
+      "count": 2
+    },
+    {
+      "id": "c1d2...",
+      "productName": "Pan",
+      "categoryId": null,
+      "lowest": null,
+      "average": null,
+      "count": 0
+    }
+  ],
+  "categories": [
+    { "id": "cat-lacteos", "name": "Lácteos", "icon": "🥛", "color": "#3366cc" }
+  ]
+}
+```
+
+| Campo                | Tipo           | Descripción                                            |
+| -------------------- | -------------- | ------------------------------------------------------ |
+| `list`               | object         | `{ id, name }` de la lista.                            |
+| `items[].productName`| string         | Nombre del producto.                                   |
+| `items[].categoryId` | string \| null | Categoría del item (para agrupar); `null` si no tiene. |
+| `items[].lowest`     | number \| null | Precio más bajo del historial; `null` si no hay precios. |
+| `items[].average`    | number \| null | Precio promedio del historial; `null` si no hay precios. |
+| `items[].count`      | number         | Cantidad de precios registrados.                       |
+| `categories`         | array          | Categorías (`id`, `name`, `icon`, `color`) para los headers. |
+
+Agrupa en el cliente por `items[].categoryId` usando `categories`.
+
+### Errores
+
+| Código | Cuándo                  | Cuerpo                                  |
+| ------ | ----------------------- | --------------------------------------- |
+| `404`  | La lista no existe      | `{ "error": "Lista no encontrada." }`   |
+
+```bash
+curl 'http://localhost:3200/api/lists/apilist-bc7581'
+```
+
+---
+
+## POST /api/lists/:listId/items
+
+Agrega un producto (ya creado antes) a una lista.
+
+```
+POST /api/lists/:listId/items
+Content-Type: application/json
+```
+
+### Cuerpo (JSON)
+
+| Campo         | Requerido | Tipo           | Descripción                                                              |
+| ------------- | --------- | -------------- | ------------------------------------------------------------------------ |
+| `productName` | Sí        | string         | Nombre del producto a agregar.                                           |
+| `categoryId`  | No        | string \| null | Categoría del item. Si se **omite**, se resuelve automáticamente desde el producto existente con ese nombre. |
+
+### Respuesta `201 Created`
+
+```json
+{
+  "item": {
+    "id": "b675b11a-8694-4589-8328-a04349140bf5",
+    "productName": "Leche",
+    "categoryId": "cat-lacteos"
+  }
+}
+```
+
+### Ejemplos
+
+```bash
+# categoryId se resuelve solo desde el producto "Leche"
+curl -X POST 'http://localhost:3200/api/lists/apilist-bc7581/items' \
+  -H 'Content-Type: application/json' \
+  -d '{"productName":"Leche"}'
+```
+
+### Errores
+
+| Código | Cuándo                              | Cuerpo                                                 |
+| ------ | ----------------------------------- | ----------------------------------------------------- |
+| `400`  | Body no es JSON válido              | `{ "error": "Body debe ser JSON válido." }`           |
+| `400`  | Falta `productName` o tipo inválido | `{ "error": "Datos inválidos.", "issues": [ ... ] }`  |
+| `404`  | La lista no existe                  | `{ "error": "Lista no encontrada." }`                 |
