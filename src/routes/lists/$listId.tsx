@@ -1,9 +1,10 @@
 import * as React from 'react'
-import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, Check, Plus, Trash2 } from 'lucide-react'
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 
 import { Button } from '#/components/ui/button.tsx'
+import { Input } from '#/components/ui/input.tsx'
 import {
   Select,
   SelectContent,
@@ -16,7 +17,9 @@ import {
   getAllProducts,
   getShoppingListDetail,
   removeShoppingListItem,
+  toggleShoppingListItem,
 } from '#/lib/products-server.ts'
+import { cn } from '#/lib/utils.ts'
 import { formatPrice } from '#/lib/format-price.ts'
 
 import type {
@@ -39,12 +42,14 @@ function ShoppingListDetailPage() {
   const getAllProductsFn = useServerFn(getAllProducts)
   const addItemFn = useServerFn(addShoppingListItem)
   const removeItemFn = useServerFn(removeShoppingListItem)
+  const toggleItemFn = useServerFn(toggleShoppingListItem)
 
   const [detail, setDetail] = React.useState<ShoppingListDetail | null>(initial)
   const [picklist, setPicklist] = React.useState<
     Array<{ name: string; categoryId: string | null }>
   >([])
   const [selected, setSelected] = React.useState('')
+  const [qty, setQty] = React.useState('1')
   const [busy, setBusy] = React.useState(false)
 
   React.useEffect(() => {
@@ -79,9 +84,11 @@ function ShoppingListDetailPage() {
           listId,
           productName: selected,
           categoryId: product?.categoryId ?? null,
+          quantity: qty.trim() || '1',
         },
       })
       setSelected('')
+      setQty('1')
       await refresh()
     } finally {
       setBusy(false)
@@ -90,6 +97,22 @@ function ShoppingListDetailPage() {
 
   async function removeItem(id: string) {
     await removeItemFn({ data: { id } })
+    await refresh()
+  }
+
+  async function toggleItem(id: string, checked: boolean) {
+    // optimista
+    setDetail((d) =>
+      d
+        ? {
+            ...d,
+            items: d.items.map((it) =>
+              it.id === id ? { ...it, checked } : it,
+            ),
+          }
+        : d,
+    )
+    await toggleItemFn({ data: { id, checked } })
     await refresh()
   }
 
@@ -128,6 +151,13 @@ function ShoppingListDetailPage() {
             )}
           </SelectContent>
         </Select>
+        <Input
+          value={qty}
+          onChange={(e) => setQty(e.target.value)}
+          aria-label="Cantidad"
+          placeholder="1"
+          className="w-16 text-center"
+        />
         <Button onClick={addItem} disabled={!selected || busy}>
           <Plus className="size-4" />
           Agregar
@@ -154,9 +184,35 @@ function ShoppingListDetailPage() {
                   key={item.id}
                   className="flex items-center gap-3 rounded-lg border border-border bg-card p-3"
                 >
-                  <span className="min-w-0 flex-1 truncate font-medium">
-                    {item.productName}
-                  </span>
+                  <button
+                    type="button"
+                    aria-label={
+                      item.checked ? 'Marcar pendiente' : 'Marcar comprado'
+                    }
+                    aria-pressed={item.checked}
+                    onClick={() => toggleItem(item.id, !item.checked)}
+                    className={cn(
+                      'flex size-6 shrink-0 items-center justify-center rounded-md border transition active:scale-95',
+                      item.checked
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'border-border bg-background text-transparent',
+                    )}
+                  >
+                    <Check className="size-4" />
+                  </button>
+                  <div className="min-w-0 flex-1">
+                    <div
+                      className={cn(
+                        'truncate font-medium',
+                        item.checked && 'text-muted-foreground line-through',
+                      )}
+                    >
+                      {item.productName}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Cantidad: {item.quantity}
+                    </div>
+                  </div>
                   <PriceInfo item={item} />
                   <Button
                     variant="ghost"

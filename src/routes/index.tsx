@@ -187,6 +187,11 @@ function Home() {
     }
   }, [products])
 
+  const categoriesById = React.useMemo(
+    () => new Map(categories.map((c) => [c.id, c])),
+    [categories],
+  )
+
   const filteredProducts = React.useMemo(() => {
     return [...products]
       .filter((product) => activeArea === 'all' || product.area === activeArea)
@@ -206,34 +211,6 @@ function Home() {
     value: ProductFormState[TKey],
   ) {
     setForm((current) => ({ ...current, [key]: value }))
-  }
-
-  function openProductForm() {
-    setEditingProduct(null)
-    setForm(emptyForm)
-    setScanPreview('')
-    setAiStatus('idle')
-    setExpirationSuggestion('')
-    setSaveError('')
-    setProductModalOpen(true)
-  }
-
-  function editProduct(product: Product) {
-    setEditingProduct(product)
-    setForm({
-      name: product.name,
-      area: product.area,
-      expiresAt: product.expiresAt,
-      quantity: product.quantity,
-      notes: product.notes,
-      price: '',
-      categoryId: product.categoryId ?? '',
-    })
-    setScanPreview(product.imageUrl ?? '')
-    setAiStatus(product.source === 'ai' ? 'ready' : 'idle')
-    setExpirationSuggestion('')
-    setSaveError('')
-    setProductModalOpen(true)
   }
 
   function closeProductForm() {
@@ -469,7 +446,7 @@ function Home() {
       <section className="border-b border-border bg-card">
         <div className="mx-auto flex max-w-7xl flex-col gap-8 px-4 py-6 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-3xl">
+            <div className="min-w-0 max-w-3xl">
               <div className="mb-3 flex items-center gap-3 text-sm font-semibold text-muted-foreground">
                 <img
                   alt="Logo de la aplicacion"
@@ -479,11 +456,11 @@ function Home() {
                 Vencimiento
               </div>
               <h1 className="text-3xl font-semibold tracking-normal sm:text-5xl">
-                Productos al dia, sin sorpresas al vencer.
+                Productos al dia
               </h1>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:w-[520px]">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:w-[520px] lg:shrink-0">
               <Metric label="Total" value={stats.total} />
               <Metric label="Refrigeradora" value={stats.fridge} />
               <Metric label="Despensa" value={stats.pantry} />
@@ -498,11 +475,12 @@ function Home() {
           <ActionCard
             icon={<PackagePlus className="size-5" />}
             title="Agregar producto"
-            onClick={openProductForm}
+            onClick={() => navigate({ to: '/add' })}
           />
           <ActionCard
             icon={<Camera className="size-5" />}
             title="Agregar con camara"
+            variant="camera"
             onClick={() => setCameraModalOpen(true)}
           />
         </div>
@@ -580,6 +558,11 @@ function Home() {
                 <ProductRow
                   key={product.id}
                   product={product}
+                  category={
+                    product.categoryId
+                      ? (categoriesById.get(product.categoryId) ?? null)
+                      : null
+                  }
                   index={index}
                   onDetails={() =>
                     navigate({
@@ -587,7 +570,9 @@ function Home() {
                       params: { productId: product.id },
                     })
                   }
-                  onEdit={() => editProduct(product)}
+                  onEdit={() =>
+                    navigate({ to: '/add', search: { id: product.id } })
+                  }
                   onDiscard={() => discardProductById(product.id)}
                   onRemove={() => removeProductById(product.id)}
                 />
@@ -864,18 +849,31 @@ function ActionCard({
   icon,
   title,
   onClick,
+  variant = 'default',
 }: {
   icon: React.ReactNode
   title: string
   onClick: () => void
+  variant?: 'default' | 'camera'
 }) {
+  const camera = variant === 'camera'
   return (
     <button
-      className="flex min-h-20 items-center gap-2 rounded-lg border border-border bg-card p-3 text-left text-card-foreground shadow-sm transition-colors hover:border-primary/50 hover:bg-accent focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none sm:min-h-24 sm:gap-4 sm:p-5"
+      className={cn(
+        'flex min-h-20 items-center gap-2 rounded-2xl border p-3 text-left text-card-foreground shadow-sm transition-all hover:-translate-y-0.5 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none active:scale-[0.99] sm:min-h-24 sm:gap-4 sm:p-5',
+        camera
+          ? 'border-[#D4DBF3] bg-gradient-to-r from-[#E9ECFA] to-[#DDEBFB]'
+          : 'border-border bg-card hover:border-primary/50',
+      )}
       onClick={onClick}
       type="button"
     >
-      <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground sm:size-11">
+      <span
+        className={cn(
+          'flex size-9 shrink-0 items-center justify-center rounded-[13px] sm:size-11',
+          camera ? 'bg-white text-[#46504B]' : 'bg-primary text-primary-foreground',
+        )}
+      >
         {icon}
       </span>
       <span className="text-sm font-semibold leading-tight sm:text-base">
@@ -957,7 +955,7 @@ function Metric({
       )}
     >
       <div className="text-2xl font-semibold">{value}</div>
-      <div className="mt-1 text-xs font-medium text-muted-foreground">
+      <div className="mt-1 text-xs font-medium leading-tight text-muted-foreground">
         {label}
       </div>
     </div>
@@ -991,6 +989,7 @@ function FilterButton({
 
 function ProductRow({
   product,
+  category,
   index = 0,
   onDetails,
   onEdit,
@@ -998,6 +997,7 @@ function ProductRow({
   onRemove,
 }: {
   product: Product
+  category?: CategoryRecord | null
   index?: number
   onDetails: () => void
   onEdit: () => void
@@ -1020,8 +1020,19 @@ function ProductRow({
     >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex w-full min-w-0 gap-3">
-            <div className="flex size-11 shrink-0 items-center justify-center rounded-md bg-accent text-accent-foreground">
-              <Icon className="size-5" />
+            <div
+              className="flex size-11 shrink-0 items-center justify-center rounded-md bg-accent text-accent-foreground"
+              style={
+                category
+                  ? { backgroundColor: `${category.color}22` }
+                  : undefined
+              }
+            >
+              {category?.icon ? (
+                <span className="text-xl">{category.icon}</span>
+              ) : (
+                <Icon className="size-5" />
+              )}
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -1035,7 +1046,14 @@ function ProductRow({
                   </span>
                 ) : null}
               </div>
-              <p className="mt-1 text-sm text-muted-foreground [overflow-wrap:anywhere]">
+              <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground [overflow-wrap:anywhere]">
+                {category ? (
+                  <span
+                    className="size-2 shrink-0 rounded-full"
+                    style={{ backgroundColor: category.color }}
+                  />
+                ) : null}
+                {category ? `${category.name} · ` : ''}
                 {displayQuantity} ·{' '}
                 {product.area === 'fridge' ? 'Refrigeradora' : 'Despensa'}
               </p>

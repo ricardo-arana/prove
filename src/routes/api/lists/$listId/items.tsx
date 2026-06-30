@@ -6,6 +6,7 @@ import { z } from 'zod'
 const BodySchema = z.object({
   productName: z.string().min(1),
   categoryId: z.string().nullable().optional(), // si se omite, se resuelve por nombre
+  quantity: z.string().optional(), // default "1"
 })
 
 export const Route = createFileRoute('/api/lists/$listId/items')({
@@ -40,11 +41,12 @@ export const Route = createFileRoute('/api/lists/$listId/items')({
             ? parsed.data.categoryId
             : findProductCategoryId(productName)
 
+        const quantity = parsed.data.quantity?.trim() || '1'
         const id = randomUUID()
-        addShoppingListItem(id, params.listId, productName, categoryId)
+        addShoppingListItem(id, params.listId, productName, categoryId, quantity)
 
         return json(
-          { item: { id, productName, categoryId } },
+          { item: { id, productName, categoryId, quantity } },
           { status: 201 },
         )
       },

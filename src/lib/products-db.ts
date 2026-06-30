@@ -37,12 +37,15 @@ export interface ShoppingListRecord {
   id: string
   name: string
   itemCount: number
+  checkedCount: number
 }
 
 export interface ShoppingListItemRecord {
   id: string
   productName: string
   categoryId: string | null
+  quantity: string
+  checked: boolean
 }
 
 const dbPath =
@@ -106,6 +109,8 @@ function getDb() {
       list_id TEXT NOT NULL,
       product_name TEXT NOT NULL,
       category_id TEXT,
+      quantity TEXT NOT NULL DEFAULT '1',
+      checked INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -117,6 +122,8 @@ function getDb() {
   for (const sql of [
     'ALTER TABLE products ADD COLUMN discarded_at TEXT',
     'ALTER TABLE products ADD COLUMN category_id TEXT',
+    "ALTER TABLE shopping_list_items ADD COLUMN quantity TEXT NOT NULL DEFAULT '1'",
+    'ALTER TABLE shopping_list_items ADD COLUMN checked INTEGER NOT NULL DEFAULT 0',
   ]) {
     try {
       db.exec(sql)
@@ -376,7 +383,9 @@ export function listShoppingLists() {
         SELECT
           l.id, l.name,
           (SELECT COUNT(*) FROM shopping_list_items i WHERE i.list_id = l.id)
-            AS itemCount
+            AS itemCount,
+          (SELECT COUNT(*) FROM shopping_list_items i
+             WHERE i.list_id = l.id AND i.checked = 1) AS checkedCount
         FROM shopping_lists l
         ORDER BY l.created_at DESC
       `,
@@ -396,7 +405,7 @@ export function insertShoppingList(id: string, name: string) {
       .prepare('INSERT INTO shopping_lists (id, name) VALUES (?, ?)')
       .run(id, name)
   })
-  return { id, name, itemCount: 0 }
+  return { id, name, itemCount: 0, checkedCount: 0 }
 }
 
 export function updateShoppingList(id: string, name: string) {
@@ -416,16 +425,20 @@ export function deleteShoppingList(id: string) {
 }
 
 export function listShoppingListItems(listId: string) {
-  return getDb()
+  const rows = getDb()
     .prepare(
       `
-        SELECT id, product_name AS productName, category_id AS categoryId
+        SELECT id, product_name AS productName, category_id AS categoryId,
+               quantity, checked
         FROM shopping_list_items
         WHERE list_id = ?
-        ORDER BY created_at ASC
+        ORDER BY checked ASC, created_at ASC
       `,
     )
-    .all(listId) as unknown as ShoppingListItemRecord[]
+    .all(listId) as unknown as Array<
+    Omit<ShoppingListItemRecord, 'checked'> & { checked: number }
+  >
+  return rows.map((r) => ({ ...r, checked: r.checked === 1 }))
 }
 
 export function addShoppingListItem(
@@ -433,17 +446,28 @@ export function addShoppingListItem(
   listId: string,
   productName: string,
   categoryId: string | null,
+  quantity: string,
 ) {
   runWithWritableDb(() => {
     getDb()
       .prepare(
         `
-          INSERT INTO shopping_list_items (id, list_id, product_name, category_id)
-          VALUES (?, ?, ?, ?)
+          INSERT INTO shopping_list_items
+            (id, list_id, product_name, category_id, quantity)
+          VALUES (?, ?, ?, ?, ?)
         `,
       )
-      .run(id, listId, productName, categoryId)
+      .run(id, listId, productName, categoryId, quantity)
   })
+}
+
+export function setShoppingListItemChecked(id: string, checked: boolean) {
+  runWithWritableDb(() => {
+    getDb()
+      .prepare('UPDATE shopping_list_items SET checked = ? WHERE id = ?')
+      .run(checked ? 1 : 0, id)
+  })
+  return { success: true }
 }
 
 export function findProductCategoryId(name: string): string | null {

@@ -106,38 +106,53 @@ function ShoppingListsPage() {
         {lists.map((list) => (
           <li
             key={list.id}
-            className="flex items-center gap-2 rounded-lg border border-border bg-card p-3"
+            className="rounded-2xl border border-border bg-card p-4"
           >
-            <Link
-              to="/lists/$listId"
-              params={{ listId: list.id }}
-              className="flex min-w-0 flex-1 items-center gap-2 hover:text-foreground"
-            >
-              <span className="truncate font-medium">{list.name}</span>
-              <span className="text-xs text-muted-foreground">
-                {list.itemCount} item{list.itemCount === 1 ? '' : 's'}
-              </span>
-              <ChevronRight className="ml-auto size-4 text-muted-foreground" />
-            </Link>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={`Renombrar ${list.name}`}
-              onClick={() => {
-                setEditingId(list.id)
-                setName(list.name)
-              }}
-            >
-              <Pencil className="size-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={`Eliminar ${list.name}`}
-              onClick={() => remove(list.id)}
-            >
-              <Trash2 className="size-4" />
-            </Button>
+            <div className="flex items-center gap-2">
+              <Link
+                to="/lists/$listId"
+                params={{ listId: list.id }}
+                className="flex min-w-0 flex-1 items-center gap-2 hover:text-foreground"
+              >
+                <span className="truncate font-semibold">{list.name}</span>
+                <span className="text-xs text-muted-foreground">
+                  {list.itemCount} item{list.itemCount === 1 ? '' : 's'}
+                </span>
+                <ListStatus list={list} />
+                <ChevronRight className="ml-auto size-4 text-muted-foreground" />
+              </Link>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={`Renombrar ${list.name}`}
+                onClick={() => {
+                  setEditingId(list.id)
+                  setName(list.name)
+                }}
+              >
+                <Pencil className="size-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={`Eliminar ${list.name}`}
+                onClick={() => remove(list.id)}
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            </div>
+            {list.itemCount > 0 ? (
+              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-primary transition-[width] duration-300"
+                  style={{
+                    width: `${Math.round(
+                      (list.checkedCount / list.itemCount) * 100,
+                    )}%`,
+                  }}
+                />
+              </div>
+            ) : null}
           </li>
         ))}
       </ul>
@@ -148,5 +163,25 @@ function ShoppingListsPage() {
         </p>
       ) : null}
     </main>
+  )
+}
+
+function ListStatus({ list }: { list: ShoppingListRecord }) {
+  const pending = list.itemCount - list.checkedCount
+  let label = 'Vacía'
+  let cls = 'bg-muted text-muted-foreground'
+  if (list.itemCount > 0 && pending === 0) {
+    label = 'Completa'
+    cls = 'bg-accent text-accent-foreground'
+  } else if (pending > 0) {
+    label = `${pending} por comprar`
+    cls = 'bg-muted text-muted-foreground'
+  }
+  return (
+    <span
+      className={`shrink-0 rounded-md px-2 py-0.5 text-[11px] font-bold ${cls}`}
+    >
+      {label}
+    </span>
   )
 }

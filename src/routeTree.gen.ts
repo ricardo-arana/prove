@@ -9,7 +9,9 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as CategoriesRouteImport } from './routes/categories'
+import { Route as AddRouteImport } from './routes/add'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProductsIndexRouteImport } from './routes/products/index'
 import { Route as ListsIndexRouteImport } from './routes/lists/index'
@@ -21,9 +23,19 @@ import { Route as ApiProductsExpiringRouteImport } from './routes/api/products/e
 import { Route as ApiListsListIdIndexRouteImport } from './routes/api/lists/$listId/index'
 import { Route as ApiListsListIdItemsRouteImport } from './routes/api/lists/$listId/items'
 
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CategoriesRoute = CategoriesRouteImport.update({
   id: '/categories',
   path: '/categories',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AddRoute = AddRouteImport.update({
+  id: '/add',
+  path: '/add',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -79,7 +91,9 @@ const ApiListsListIdItemsRoute = ApiListsListIdItemsRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/add': typeof AddRoute
   '/categories': typeof CategoriesRoute
+  '/settings': typeof SettingsRoute
   '/lists/$listId': typeof ListsListIdRoute
   '/products/$productId': typeof ProductsProductIdRoute
   '/lists/': typeof ListsIndexRoute
@@ -92,7 +106,9 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/add': typeof AddRoute
   '/categories': typeof CategoriesRoute
+  '/settings': typeof SettingsRoute
   '/lists/$listId': typeof ListsListIdRoute
   '/products/$productId': typeof ProductsProductIdRoute
   '/lists': typeof ListsIndexRoute
@@ -106,7 +122,9 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/add': typeof AddRoute
   '/categories': typeof CategoriesRoute
+  '/settings': typeof SettingsRoute
   '/lists/$listId': typeof ListsListIdRoute
   '/products/$productId': typeof ProductsProductIdRoute
   '/lists/': typeof ListsIndexRoute
@@ -121,7 +139,9 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/add'
     | '/categories'
+    | '/settings'
     | '/lists/$listId'
     | '/products/$productId'
     | '/lists/'
@@ -134,7 +154,9 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/add'
     | '/categories'
+    | '/settings'
     | '/lists/$listId'
     | '/products/$productId'
     | '/lists'
@@ -147,7 +169,9 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/add'
     | '/categories'
+    | '/settings'
     | '/lists/$listId'
     | '/products/$productId'
     | '/lists/'
@@ -161,7 +185,9 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AddRoute: typeof AddRoute
   CategoriesRoute: typeof CategoriesRoute
+  SettingsRoute: typeof SettingsRoute
   ListsListIdRoute: typeof ListsListIdRoute
   ProductsProductIdRoute: typeof ProductsProductIdRoute
   ListsIndexRoute: typeof ListsIndexRoute
@@ -175,11 +201,25 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/categories': {
       id: '/categories'
       path: '/categories'
       fullPath: '/categories'
       preLoaderRoute: typeof CategoriesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/add': {
+      id: '/add'
+      path: '/add'
+      fullPath: '/add'
+      preLoaderRoute: typeof AddRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -257,7 +297,9 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AddRoute: AddRoute,
   CategoriesRoute: CategoriesRoute,
+  SettingsRoute: SettingsRoute,
   ListsListIdRoute: ListsListIdRoute,
   ProductsProductIdRoute: ProductsProductIdRoute,
   ListsIndexRoute: ListsIndexRoute,

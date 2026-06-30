@@ -12,6 +12,7 @@ import {
   removeCategory,
   updateCategory,
 } from '#/lib/products-server.ts'
+import { cn } from '#/lib/utils.ts'
 
 import type { CategoryRecord } from '#/lib/products-server.ts'
 
@@ -20,7 +21,18 @@ export const Route = createFileRoute('/categories')({
   component: CategoriesPage,
 })
 
-const emptyForm = { id: '', name: '', icon: '', color: '#888888' }
+const SWATCHES = [
+  '#1fd0bb',
+  '#3b82f6',
+  '#22c55e',
+  '#f59e0b',
+  '#ef4444',
+  '#8b5cf6',
+  '#ec4899',
+  '#6b7280',
+]
+
+const emptyForm = { id: '', name: '', icon: '', color: '#1fd0bb' }
 
 function CategoriesPage() {
   const initial = Route.useLoaderData()
@@ -109,14 +121,32 @@ function CategoriesPage() {
             />
           </div>
           <div className="grid gap-1.5">
-            <Label htmlFor="cat-color">Color</Label>
-            <Input
-              id="cat-color"
-              type="color"
-              value={form.color}
-              onChange={(event) => update('color', event.target.value)}
-              className="h-9 w-14 p-1"
-            />
+            <Label>Color</Label>
+            <div className="flex h-9 items-center gap-1.5">
+              {SWATCHES.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  aria-label={`Color ${c}`}
+                  aria-pressed={form.color.toLowerCase() === c}
+                  onClick={() => update('color', c)}
+                  style={{ backgroundColor: c }}
+                  className={cn(
+                    'size-6 rounded-full transition active:scale-90',
+                    form.color.toLowerCase() === c
+                      ? 'ring-2 ring-foreground ring-offset-2 ring-offset-card'
+                      : 'ring-1 ring-border',
+                  )}
+                />
+              ))}
+              <input
+                type="color"
+                aria-label="Color personalizado"
+                value={form.color}
+                onChange={(event) => update('color', event.target.value)}
+                className="size-6 cursor-pointer rounded-full border-0 bg-transparent p-0"
+              />
+            </div>
           </div>
           <div className="flex gap-2">
             <Button onClick={save} disabled={!form.name.trim() || saving}>

@@ -219,6 +219,8 @@ export interface ShoppingListItemDetail {
   id: string
   productName: string
   categoryId: string | null
+  quantity: string
+  checked: boolean
   lowest: number | null
   average: number | null
   count: number
@@ -280,6 +282,8 @@ export const getShoppingListDetail = createServerFn({ method: 'GET' })
         id: item.id,
         productName: item.productName,
         categoryId: item.categoryId,
+        quantity: item.quantity,
+        checked: item.checked,
         lowest: summary.lowest,
         average: summary.average,
         count: summary.count,
@@ -295,13 +299,27 @@ export const addShoppingListItem = createServerFn({ method: 'POST' })
       listId: z.string().min(1),
       productName: z.string().min(1),
       categoryId: z.string().nullable().optional(),
+      quantity: z.string().optional(),
     }),
   )
   .handler(async ({ data }) => {
     const { addShoppingListItem: add } = await import('#/lib/products-db.ts')
     const id = crypto.randomUUID()
-    add(id, data.listId, data.productName, data.categoryId ?? null)
+    add(
+      id,
+      data.listId,
+      data.productName,
+      data.categoryId ?? null,
+      data.quantity?.trim() || '1',
+    )
     return { id }
+  })
+
+export const toggleShoppingListItem = createServerFn({ method: 'POST' })
+  .inputValidator(z.object({ id: z.string().min(1), checked: z.boolean() }))
+  .handler(async ({ data }) => {
+    const { setShoppingListItemChecked } = await import('#/lib/products-db.ts')
+    return setShoppingListItemChecked(data.id, data.checked)
   })
 
 export const removeShoppingListItem = createServerFn({ method: 'POST' })
