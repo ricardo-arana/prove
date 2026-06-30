@@ -42,7 +42,7 @@ function AllProductsPage() {
           const discarded = Boolean(product.discardedAt)
           const expired = !discarded && product.expiresAt < today
           return (
-            <li key={product.id}>
+            <li key={product.id} className="min-w-0">
               <Link
                 to="/products/$productId"
                 params={{ productId: product.id }}
@@ -53,13 +53,13 @@ function AllProductsPage() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-medium">{product.name}</div>
-                  <div className="text-xs text-muted-foreground">
+                  <div className="truncate text-xs text-muted-foreground">
                     {product.quantity} ·{' '}
                     {product.area === 'fridge' ? 'Refrigeradora' : 'Despensa'}
                   </div>
                 </div>
                 {discarded ? (
-                  <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">
                     <Trash2 className="size-3" />
                     No disponible
                   </span>
@@ -67,8 +67,8 @@ function AllProductsPage() {
                   <span
                     className={
                       expired
-                        ? 'text-xs font-medium text-destructive'
-                        : 'text-xs text-muted-foreground'
+                        ? 'shrink-0 text-right text-xs font-medium text-destructive'
+                        : 'shrink-0 text-right text-xs text-muted-foreground'
                     }
                   >
                     {formatShortDate(product.expiresAt)}
