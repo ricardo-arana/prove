@@ -185,6 +185,38 @@ function ProductDetailPage() {
             </ResponsiveContainer>
           )}
         </div>
+
+        {prices.history.length > 0 ? (
+          <div className="mt-4 overflow-hidden rounded-lg border border-border bg-card">
+            <table className="w-full text-sm">
+              <caption className="sr-only">Últimos 5 precios registrados</caption>
+              <thead>
+                <tr className="border-b border-border text-left text-muted-foreground">
+                  <th className="px-4 py-2 font-medium">Fecha</th>
+                  <th className="px-4 py-2 text-right font-medium">Precio</th>
+                </tr>
+              </thead>
+              <tbody>
+                {prices.history
+                  .slice(-5)
+                  .reverse()
+                  .map((entry, index) => (
+                    <tr
+                      key={`${entry.recordedAt}-${index}`}
+                      className="border-b border-border last:border-0"
+                    >
+                      <td className="px-4 py-2">
+                        {formatShortDate(entry.recordedAt)}
+                      </td>
+                      <td className="px-4 py-2 text-right font-medium">
+                        {formatPrice(entry.price)}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
       </section>
 
       <section className="mt-6 rounded-lg border border-border bg-card p-4">
