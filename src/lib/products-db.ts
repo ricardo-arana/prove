@@ -156,7 +156,7 @@ export function listProducts() {
           discarded_at AS discardedAt,
           category_id AS categoryId
         FROM products
-        WHERE discarded_at IS NULL
+        WHERE discarded_at IS NULL AND expires_at != ''
         ORDER BY expires_at ASC, created_at DESC
       `,
     )
@@ -172,7 +172,7 @@ export function listAllProducts() {
           source, image_url AS imageUrl, created_at AS createdAt,
           discarded_at AS discardedAt, category_id AS categoryId
         FROM products
-        ORDER BY discarded_at IS NOT NULL, expires_at ASC, created_at DESC
+        ORDER BY discarded_at IS NOT NULL, expires_at = '', expires_at ASC, created_at DESC
       `,
     )
     .all() as unknown as ProductRecord[]
@@ -252,8 +252,11 @@ export function listProductsExpiringInRange(
             LIMIT 1
           ) AS lastPrice
         FROM products
-        WHERE expires_at < ?              -- ya vencidos hasta hoy
-           OR expires_at BETWEEN ? AND ?  -- por vencer dentro del rango
+        WHERE expires_at != ''
+          AND (
+            expires_at < ?              -- ya vencidos hasta hoy
+            OR expires_at BETWEEN ? AND ?  -- por vencer dentro del rango
+          )
         ORDER BY expires_at ASC, created_at DESC
       `,
     )

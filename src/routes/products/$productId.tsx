@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { ArrowLeft, Trash2 } from 'lucide-react'
+import { ArrowLeft, Pencil, Trash2 } from 'lucide-react'
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import {
@@ -95,6 +95,14 @@ function ProductDetailPage() {
         <h1 className="text-2xl font-semibold [overflow-wrap:anywhere]">
           {product.name}
         </h1>
+        {product.discardedAt ? null : (
+          <Button asChild variant="outline" size="sm">
+            <Link to="/add" search={{ id: product.id }}>
+              <Pencil className="size-4" />
+              Editar
+            </Link>
+          </Button>
+        )}
         {product.discardedAt ? (
           <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">
             <Trash2 className="size-3" />
@@ -112,8 +120,12 @@ function ProductDetailPage() {
         {product.discardedAt ? null : (
           <InfoCard
             label="Vencimiento"
-            value={formatShortDate(product.expiresAt)}
-            expired={product.expiresAt < todayISO()}
+            value={
+              product.expiresAt
+                ? formatShortDate(product.expiresAt)
+                : 'Sin vencimiento'
+            }
+            expired={Boolean(product.expiresAt) && product.expiresAt < todayISO()}
           />
         )}
       </section>

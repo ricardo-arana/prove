@@ -19,7 +19,7 @@ import {
   Warehouse,
   X,
 } from 'lucide-react'
-import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 
 import { Button } from '#/components/ui/button.tsx'
@@ -224,7 +224,7 @@ function Home() {
   }
 
   async function saveProduct(source: Product['source'] = 'manual') {
-    if (!form.name.trim() || !form.expiresAt || savingProduct) return
+    if (!form.name.trim() || savingProduct) return
 
     setSaveError('')
     setSavingProduct(true)
@@ -521,27 +521,6 @@ function Home() {
             </div>
           </Panel>
 
-          <div className="flex justify-end gap-4">
-            <Link
-              to="/lists"
-              className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-            >
-              Listas de compras
-            </Link>
-            <Link
-              to="/categories"
-              className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-            >
-              Categorías
-            </Link>
-            <Link
-              to="/products"
-              className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-            >
-              Ver todos los productos
-            </Link>
-          </div>
-
           <div className="grid gap-3 lg:grid-cols-2">
             {loadingProducts ? (
               <Panel className="flex min-h-56 items-center justify-center text-center lg:col-span-2">
@@ -727,7 +706,7 @@ function Home() {
 
           <Button
             className="w-full"
-            disabled={!form.name.trim() || !form.expiresAt || savingProduct}
+            disabled={!form.name.trim() || savingProduct}
             onClick={() => saveProduct(aiStatus === 'ready' ? 'ai' : 'manual')}
           >
             <Check className="size-4" />

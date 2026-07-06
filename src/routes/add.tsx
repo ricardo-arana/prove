@@ -81,7 +81,7 @@ function AddProductPage() {
   }
 
   async function save() {
-    if (!name.trim() || !expiresAt || saving) return
+    if (!name.trim() || saving) return
     setError('')
     setSaving(true)
     const data = {
@@ -245,7 +245,7 @@ function AddProductPage() {
 
         <Button
           className="w-full"
-          disabled={!name.trim() || !expiresAt || saving}
+          disabled={!name.trim() || saving}
           onClick={save}
         >
           <Check className="size-4" />

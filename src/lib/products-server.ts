@@ -23,7 +23,8 @@ const ProductInputSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   area: z.enum(['fridge', 'pantry']),
-  expiresAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  // ponytail: '' = sin vencimiento (evita migrar NOT NULL en SQLite)
+  expiresAt: z.string().regex(/^(\d{4}-\d{2}-\d{2})?$/),
   quantity: z.string().min(1),
   notes: z.string(),
   source: z.enum(['manual', 'ai']),

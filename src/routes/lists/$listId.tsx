@@ -34,6 +34,7 @@ export const Route = createFileRoute('/lists/$listId')({
 })
 
 const NO_CATEGORY = '__none__'
+const OTHER_PRODUCT = '__other__'
 
 function ShoppingListDetailPage() {
   const initial = Route.useLoaderData()
@@ -49,6 +50,7 @@ function ShoppingListDetailPage() {
     Array<{ name: string; categoryId: string | null }>
   >([])
   const [selected, setSelected] = React.useState('')
+  const [customName, setCustomName] = React.useState('')
   const [qty, setQty] = React.useState('1')
   const [busy, setBusy] = React.useState(false)
 
@@ -74,20 +76,24 @@ function ShoppingListDetailPage() {
     setDetail(fresh)
   }
 
+  const isOther = selected === OTHER_PRODUCT
+  const itemName = isOther ? customName.trim() : selected
+
   async function addItem() {
-    if (!selected || busy) return
+    if (!itemName || busy) return
     setBusy(true)
     try {
-      const product = picklist.find((p) => p.name === selected)
+      const product = picklist.find((p) => p.name === itemName)
       await addItemFn({
         data: {
           listId,
-          productName: selected,
+          productName: itemName,
           categoryId: product?.categoryId ?? null,
           quantity: qty.trim() || '1',
         },
       })
       setSelected('')
+      setCustomName('')
       setQty('1')
       await refresh()
     } finally {
@@ -132,36 +138,45 @@ function ShoppingListDetailPage() {
       <BackLink />
       <h1 className="mt-4 text-2xl font-semibold">{detail.list.name}</h1>
 
-      <div className="mt-4 flex gap-2">
-        <Select value={selected} onValueChange={setSelected}>
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Elige un producto..." />
-          </SelectTrigger>
-          <SelectContent>
-            {picklist.length === 0 ? (
-              <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                No hay productos creados.
-              </div>
-            ) : (
-              picklist.map((p) => (
+      <div className="mt-4 grid gap-2">
+        <div className="flex gap-2">
+          <Select value={selected} onValueChange={setSelected}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Elige un producto..." />
+            </SelectTrigger>
+            <SelectContent>
+              {picklist.map((p) => (
                 <SelectItem key={p.name} value={p.name}>
                   {p.name}
                 </SelectItem>
-              ))
-            )}
-          </SelectContent>
-        </Select>
-        <Input
-          value={qty}
-          onChange={(e) => setQty(e.target.value)}
-          aria-label="Cantidad"
-          placeholder="1"
-          className="w-16 text-center"
-        />
-        <Button onClick={addItem} disabled={!selected || busy}>
-          <Plus className="size-4" />
-          Agregar
-        </Button>
+              ))}
+              <SelectItem value={OTHER_PRODUCT}>Otro producto…</SelectItem>
+            </SelectContent>
+          </Select>
+          <Input
+            value={qty}
+            onChange={(e) => setQty(e.target.value)}
+            aria-label="Cantidad"
+            placeholder="1"
+            className="w-16 text-center"
+          />
+          <Button onClick={addItem} disabled={!itemName || busy}>
+            <Plus className="size-4" />
+            Agregar
+          </Button>
+        </div>
+        {isOther ? (
+          <Input
+            value={customName}
+            onChange={(e) => setCustomName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') addItem()
+            }}
+            aria-label="Nombre del producto"
+            placeholder="Escribe el nombre del producto..."
+            autoFocus
+          />
+        ) : null}
       </div>
 
       <div className="mt-6 grid gap-6">

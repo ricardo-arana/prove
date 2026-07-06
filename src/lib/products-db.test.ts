@@ -9,9 +9,8 @@ process.env.SQLITE_DB_PATH = join(
   'test.sqlite',
 )
 
-const { insertProduct, listProductsExpiringInRange } = await import(
-  '#/lib/products-db.ts'
-)
+const { insertProduct, listProducts, listAllProducts, listProductsExpiringInRange } =
+  await import('#/lib/products-db.ts')
 
 function makeProduct(id: string, expiresAt: string) {
   return {
@@ -42,4 +41,21 @@ test('listProductsExpiringInRange separa vencidos, en rango y excluye futuros', 
   const status = (e: string) => (e < today ? 'expired' : 'expiring')
   expect(status(byId['expired'].expiresAt)).toBe('expired')
   expect(status(byId['inRange'].expiresAt)).toBe('expiring')
+})
+
+test('producto sin vencimiento: fuera del home y de vencimientos, presente en todos', () => {
+  insertProduct(makeProduct('noExpiry', ''))
+
+  expect(listProducts().some((p) => p.id === 'noExpiry')).toBe(false)
+  expect(
+    listProductsExpiringInRange('2026-06-27', '2026-07-10', '2026-06-27').some(
+      (p) => p.id === 'noExpiry',
+    ),
+  ).toBe(false)
+
+  const all = listAllProducts()
+  expect(all.some((p) => p.id === 'noExpiry')).toBe(true)
+  // sin vencimiento va al final entre los no descartados
+  const active = all.filter((p) => !p.discardedAt)
+  expect(active[active.length - 1].id).toBe('noExpiry')
 })

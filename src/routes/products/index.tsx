@@ -40,7 +40,8 @@ function AllProductsPage() {
         {products.map((product) => {
           const Icon = product.area === 'fridge' ? Refrigerator : Warehouse
           const discarded = Boolean(product.discardedAt)
-          const expired = !discarded && product.expiresAt < today
+          const expired =
+            !discarded && Boolean(product.expiresAt) && product.expiresAt < today
           return (
             <li key={product.id} className="min-w-0">
               <Link
@@ -71,7 +72,9 @@ function AllProductsPage() {
                         : 'shrink-0 text-right text-xs text-muted-foreground'
                     }
                   >
-                    {formatShortDate(product.expiresAt)}
+                    {product.expiresAt
+                      ? formatShortDate(product.expiresAt)
+                      : 'Sin vencimiento'}
                     {expired ? ' · vencido' : ''}
                   </span>
                 )}
